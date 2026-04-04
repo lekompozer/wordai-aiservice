@@ -1928,6 +1928,109 @@ async def list_brand_comparisons(
 # ──────────────────────────────────────────────────────────
 
 
+# ── PUT /{plan_id}/brand-dna ───────────────────────────────
+class BrandDnaUpdateRequest(BaseModel):
+    brand_voice: Optional[str] = None
+    usp: Optional[str] = None
+    common_hashtags: Optional[list] = None
+    colors: Optional[dict] = None
+    tone_keywords: Optional[list] = None
+    content_pillars: Optional[list] = None
+    forbidden_words: Optional[list] = None
+
+
+@router.put("/{plan_id}/brand-dna", summary="Update brand DNA fields (free)")
+async def update_brand_dna(
+    plan_id: str,
+    body: BrandDnaUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update specific brand DNA fields. No points cost."""
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id}, {"_id": 0, "brand_dna": 1}
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    update_fields = {
+        f"brand_dna.{k}": v for k, v in body.model_dump(exclude_none=True).items()
+    }
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    db["social_plans"].update_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {
+            "$set": {
+                **update_fields,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+    return {
+        "success": True,
+        "plan_id": plan_id,
+        "updated_fields": list(update_fields.keys()),
+    }
+
+
+# ── PATCH /{plan_id}/post/{post_id} ───────────────────────
+class PostUpdateRequest(BaseModel):
+    hook: Optional[str] = None
+    caption: Optional[str] = None
+    hashtags: Optional[list] = None
+    cta: Optional[str] = None
+    image_prompt: Optional[str] = None
+    topic: Optional[str] = None
+    content_pillar: Optional[str] = None
+    scheduled_date: Optional[str] = None
+    platform: Optional[str] = None
+
+
+@router.patch("/{plan_id}/post/{post_id}", summary="Edit post fields (free)")
+async def update_post(
+    plan_id: str,
+    post_id: str,
+    body: PostUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Edit any field of a post. No points cost."""
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id, "posts.post_id": post_id},
+        {"_id": 0, "plan_id": 1},
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan or post not found")
+
+    update_fields = {
+        f"posts.$.{k}": v for k, v in body.model_dump(exclude_none=True).items()
+    }
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    db["social_plans"].update_one(
+        {"plan_id": plan_id, "user_id": user_id, "posts.post_id": post_id},
+        {
+            "$set": {
+                **update_fields,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+    return {
+        "success": True,
+        "plan_id": plan_id,
+        "post_id": post_id,
+        "updated_fields": list(update_fields.keys()),
+    }
+
+
 @router.get("/{plan_id}", summary="Get social plan with all posts")
 async def get_social_plan(
     plan_id: str,
