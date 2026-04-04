@@ -72,6 +72,13 @@ router.post(
     asyncHandler(paymentController.createAuditPurchase)
 );
 
+// Create content plan purchase (SEPAY cash payment) - REQUIRES AUTHENTICATION
+router.post(
+    '/content-plan/checkout',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    asyncHandler(paymentController.createContentPlanCheckout)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

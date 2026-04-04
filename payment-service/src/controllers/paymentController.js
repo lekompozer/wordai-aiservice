@@ -316,8 +316,29 @@ async function getPaymentStatus(req, res) {
 
     try {
         const db = getDb();
-        const paymentsCollection = db.collection('payments');
 
+        // Content plan orders (PLAN- prefix) live in a separate collection
+        if (order_invoice_number.startsWith('PLAN-')) {
+            const contentPlanOrdersCollection = db.collection('content_plan_orders');
+            const order = await contentPlanOrdersCollection.findOne({ order_id: order_invoice_number });
+            if (!order) {
+                throw new AppError('Content plan order not found', 404);
+            }
+            return res.json({
+                success: true,
+                data: {
+                    order_id: order.order_id,
+                    order_invoice_number: order.order_id,
+                    status: order.status,
+                    package: order.package,
+                    price: order.price_vnd,
+                    created_at: order.created_at,
+                    completed_at: order.paid_at || null,
+                },
+            });
+        }
+
+        const paymentsCollection = db.collection('payments');
         const payment = await paymentsCollection.findOne({ order_invoice_number });
 
         if (!payment) {
@@ -1012,13 +1033,89 @@ async function createAuditPurchase(req, res) {
     }
 }
 
+/**
+ * Create Content Plan checkout (SePay)
+ * order_id format: PLAN-{timestamp}-{user_short}
+ * Created by Python POST /api/v1/social-plan/content-plan-order
+ */
+async function createContentPlanCheckout(req, res) {
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const { order_id, return_url } = req.body;
+
+    if (!order_id || !order_id.startsWith('PLAN-')) {
+        throw new AppError('Invalid content plan order ID', 400);
+    }
+
+    try {
+        const db = getDb();
+        const contentPlanOrdersCollection = db.collection('content_plan_orders');
+
+        const order = await contentPlanOrdersCollection.findOne({ order_id });
+        if (!order) {
+            throw new AppError('Content plan order not found', 404);
+        }
+
+        if (order.user_id !== user_id) {
+            throw new AppError('Order belongs to a different user', 403);
+        }
+
+        if (order.status === 'completed') {
+            throw new AppError('Order already paid', 400);
+        }
+
+        const price = order.price_vnd;
+        const defaultReturnUrl = return_url || 'https://wordai.pro/social-plan';
+
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: price.toString(),
+            currency: 'VND',
+            order_invoice_number: order_id,   // PLAN-xxx prefix triggers webhook routing
+            order_description: `WordAI Content Plan - ${order.package}`,
+            customer_id: user_id,
+            success_url: defaultReturnUrl,
+            error_url: defaultReturnUrl,
+            cancel_url: defaultReturnUrl,
+        };
+
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`✅ Generated content plan checkout: ${order_id} (${order.package}, ${price} VND) for user ${user_id}`);
+
+        res.status(201).json({
+            success: true,
+            data: {
+                order_id,
+                order_invoice_number: order_id,
+                payment_url: config.sepay.checkoutUrl,
+                checkout_url: config.sepay.checkoutUrl,
+                form_fields: formFields,
+                amount: price,
+                package: order.package,
+                payment_type: 'content_plan_purchase',
+            },
+        });
+    } catch (error) {
+        logger.error(`Content plan checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     createCheckout,
     createPointsPurchase,
     createBookPurchase,
     createComboPurchase,
     createAuditPurchase,
-    createSongLearningCheckout,
+    createContentPlanCheckout,
     createConversationLearningCheckout,
     createAiBundleCheckout,
     getPaymentStatus,

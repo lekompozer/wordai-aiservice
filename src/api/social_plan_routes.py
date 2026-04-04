@@ -43,6 +43,18 @@ PACKAGE_POINT_MAP = {
     "60posts_4img": 1800,
 }
 
+# VND price for each package (1 point = 1,000 VND)
+PACKAGE_VND_MAP = {
+    "30posts_0img": 100_000,
+    "30posts_1img": 300_000,
+    "30posts_2img": 500_000,
+    "60posts_0img": 150_000,
+    "60posts_1img": 600_000,
+    "60posts_2img": 1_000_000,
+    "60posts_3img": 1_400_000,
+    "60posts_4img": 1_800_000,
+}
+
 POINTS_REGEN_IMAGE = 4
 POINTS_REGEN_TEXT = 2
 
@@ -328,12 +340,17 @@ async def create_social_plan(
     comparison_id: Optional[str] = Form(None),  # bc_xxx from Social Audit (Phase 1)
     business_pdf_asset_id: Optional[str] = Form(None),  # asset_id of business info PDF
     product_pdf_asset_id: Optional[str] = Form(None),  # asset_id of product list PDF
+    payment_order_id: Optional[str] = Form(
+        None
+    ),  # PLAN-xxx from SEPAY cash payment flow
     tiktok_data_file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
 ):
     """
     Create a new AI social marketing plan.
-    Deducts package points upfront, then enqueues background processing.
+    Payment path A: Deducts package points upfront (default).
+    Payment path B: Accepts payment_order_id (PLAN-xxx) from completed SEPAY cash payment
+                    — skips points deduction when verified.
     """
     user_id = current_user["uid"]
     db = _get_db()
@@ -347,20 +364,49 @@ async def create_social_plan(
 
     required_points = PACKAGE_POINT_MAP[package]
 
-    # Deduct points
-    points_service = get_points_service()
-    try:
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=required_points,
-            service="social_plan_package",
-            description=f"Social Marketing Plan - {package}",
+    # Payment gate — Path B: verify SEPAY order or Path A: deduct points
+    if payment_order_id:
+        # Verify the PLAN- order belongs to this user, matches the package, and is completed
+        order = db["content_plan_orders"].find_one({"order_id": payment_order_id})
+        if not order:
+            raise HTTPException(status_code=402, detail="Đơn thanh toán không tồn tại.")
+        if order.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Đơn thanh toán không thuộc về bạn."
+            )
+        if order.get("status") != "completed":
+            raise HTTPException(
+                status_code=402, detail="Đơn thanh toán chưa được xác nhận."
+            )
+        if order.get("plan_created"):
+            raise HTTPException(
+                status_code=400,
+                detail="Đơn thanh toán này đã được sử dụng để tạo kế hoạch.",
+            )
+        if order.get("package") != package:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Gói trong đơn thanh toán ({order.get('package')}) không khớp với gói được chọn ({package}).",
+            )
+        # Mark order as used (will set plan_created=True after plan is created)
+        logger.info(
+            f"Content plan using SEPAY order {payment_order_id} for user {user_id}"
         )
-    except InsufficientPointsError:
-        raise HTTPException(
-            status_code=402,
-            detail=f"Không đủ điểm. Cần {required_points} điểm cho gói {package}.",
-        )
+    else:
+        # Path A: deduct points
+        points_service = get_points_service()
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=required_points,
+                service="social_plan_package",
+                description=f"Social Marketing Plan - {package}",
+            )
+        except InsufficientPointsError:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Không đủ điểm. Cần {required_points} điểm cho gói {package}.",
+            )
 
     # Parse fields
     try:
@@ -504,9 +550,23 @@ async def create_social_plan(
         "total_posts": 0,
         "images_generated": 0,
         "job_id": job_id,
-        "points_spent": required_points,
+        "points_spent": required_points if not payment_order_id else 0,
+        "payment_order_id": payment_order_id or None,
     }
     db["social_plans"].insert_one(plan_doc)
+
+    # If paid via SEPAY order, mark order as used
+    if payment_order_id:
+        db["content_plan_orders"].update_one(
+            {"order_id": payment_order_id},
+            {
+                "$set": {
+                    "plan_created": True,
+                    "plan_id": plan_id,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
 
     # Enqueue to Redis
     queue = await _get_social_plan_queue()
@@ -1068,6 +1128,103 @@ async def grant_audit_credit(
     logger.info(
         f"✅ Audit credit granted for order {order_id}, user {order['user_id']}"
     )
+    return {"success": True, "order_id": order_id, "user_id": order["user_id"]}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONTENT PLAN CASH PAYMENT FLOW  (SePay → skip points deduction in /create)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/content-plan-order",
+    summary="Create a cash payment order for a Content Plan package",
+)
+async def create_content_plan_order(
+    package: str = Form(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Step 1 of the SEPAY payment flow for Content Plan.
+    Creates an order in `content_plan_orders` (status: pending) and returns order_id.
+    Frontend then calls payment-service POST /api/payment/content-plan/checkout with this order_id
+    to get the SePay checkout form.
+    After payment, poll GET /api/payment/status/PLAN-xxx until status = 'completed',
+    then call POST /create with payment_order_id=PLAN-xxx to skip points deduction.
+    """
+    if package not in PACKAGE_VND_MAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid package: {package}. Valid: {list(PACKAGE_VND_MAP.keys())}",
+        )
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    timestamp = int(datetime.utcnow().timestamp())
+    user_short = user_id[:8]
+    order_id = f"PLAN-{timestamp}-{user_short}"
+    price_vnd = PACKAGE_VND_MAP[package]
+
+    order_doc = {
+        "order_id": order_id,
+        "user_id": user_id,
+        "user_email": current_user.get("email", ""),
+        "package": package,
+        "price_vnd": price_vnd,
+        "status": "pending",
+        "plan_created": False,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(hours=24),
+    }
+    db["content_plan_orders"].insert_one(order_doc)
+
+    return {
+        "order_id": order_id,
+        "package": package,
+        "price_vnd": price_vnd,
+        "message": "Order created. Call payment-service POST /api/payment/content-plan/checkout with this order_id.",
+    }
+
+
+@router.post(
+    "/content-plan-order/complete",
+    summary="[INTERNAL] Mark content plan order as completed after SePay webhook",
+    include_in_schema=False,
+)
+async def complete_content_plan_order(
+    order_id: str,
+    request: Request,
+):
+    """
+    Internal endpoint called by payment-service webhook after SePay IPN.
+    Marks `content_plan_orders.status = 'completed'`.
+    Requires X-Service-Secret header.
+    """
+    service_secret = os.getenv("API_SECRET_KEY", "")
+    if not service_secret or request.headers.get("X-Service-Secret") != service_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    db = _get_db()
+    order = db["content_plan_orders"].find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.get("status") == "completed":
+        return {"success": True, "message": "Already completed"}
+
+    db["content_plan_orders"].update_one(
+        {"order_id": order_id},
+        {
+            "$set": {
+                "status": "completed",
+                "paid_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        },
+    )
+    logger.info(f"✅ Content plan order completed: {order_id}, user {order['user_id']}")
     return {"success": True, "order_id": order_id, "user_id": order["user_id"]}
 
 

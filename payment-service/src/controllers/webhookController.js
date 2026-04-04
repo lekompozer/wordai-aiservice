@@ -82,6 +82,12 @@ async function handleWebhook(req, res) {
             return await handleAuditOrderWebhook(db, payload, res);
         }
 
+        // Check if this is a content plan order (format: PLAN-{timestamp}-{user_short})
+        if (order_invoice_number.startsWith('PLAN-')) {
+            logger.info(`📋 Detected content plan order: ${order_invoice_number}`);
+            return await handleContentPlanOrderWebhook(db, payload, res);
+        }
+
         // Regular payment (subscription or points)
         const paymentsCollection = db.collection('payments');
         const payment = await paymentsCollection.findOne({ order_invoice_number });
@@ -748,6 +754,85 @@ async function handleAuditOrderWebhook(db, payload, res) {
         }
     } catch (error) {
         logger.error(`❌ Audit order webhook error: ${error.message}`);
+        return res.status(200).json({ success: false, error: error.message });
+    }
+}
+
+/**
+ * Handle content plan order webhook (format: PLAN-{timestamp}-{user_short})
+ * Marks order as completed → calls Python to confirm (Python frontend polls for status)
+ */
+async function handleContentPlanOrderWebhook(db, payload, res) {
+    try {
+        const { notification_type, order, transaction } = payload;
+        const order_id = order.order_invoice_number;
+
+        logger.info(`📋 Processing content plan order webhook: ${order_id}`);
+
+        const contentPlanOrdersCollection = db.collection('content_plan_orders');
+        const contentOrder = await contentPlanOrdersCollection.findOne({ order_id });
+
+        if (!contentOrder) {
+            logger.error(`Content plan order not found: ${order_id}`);
+            return res.status(200).json({ success: false, error: 'Content plan order not found' });
+        }
+
+        if (contentOrder.status === 'completed') {
+            logger.info(`Content plan order already completed: ${order_id}`);
+            return res.status(200).json({ success: true, message: 'Already processed' });
+        }
+
+        if (notification_type === 'ORDER_PAID') {
+            // Mark order as completed — frontend will poll /api/payment/status/PLAN-xxx
+            // and then call Python POST /create with payment_order_id
+            await contentPlanOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        status: 'completed',
+                        transaction_id: transaction?.transaction_id || null,
+                        paid_at: new Date(),
+                        webhook_payload: payload,
+                        updated_at: new Date(),
+                    },
+                }
+            );
+
+            logger.info(`✅ Content plan order marked as completed: ${order_id}`);
+
+            // Notify Python service (best-effort — frontend also polls independently)
+            try {
+                const axios = require('axios');
+                await axios.post(
+                    `${config.pythonService.url}/api/v1/social-plan/content-plan-order/complete?order_id=${order_id}`,
+                    {},
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Service-Secret': config.security.apiSecretKey,
+                        },
+                        timeout: 5000,
+                    }
+                );
+                logger.info(`📣 Python service notified for content plan order: ${order_id}`);
+            } catch (notifyErr) {
+                // Non-fatal: frontend polling will pick it up from MongoDB directly
+                logger.warn(`⚠️  Python notify failed for ${order_id}: ${notifyErr.message}`);
+            }
+
+            return res.status(200).json({
+                success: true,
+                message: 'Content plan order completed. Frontend should poll /api/payment/status then call /create.',
+            });
+        } else {
+            await contentPlanOrdersCollection.updateOne(
+                { order_id },
+                { $set: { webhook_payload: payload, updated_at: new Date() } }
+            );
+            return res.status(200).json({ success: true, message: 'Content plan order webhook received' });
+        }
+    } catch (error) {
+        logger.error(`❌ Content plan order webhook error: ${error.message}`);
         return res.status(200).json({ success: false, error: error.message });
     }
 }
