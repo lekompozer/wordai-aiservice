@@ -1,15 +1,19 @@
 """
 Social Plan Worker
 Consumes queue:social_plan_jobs and runs the full plan generation pipeline:
-  Phase 1:  Brand Extraction (Playwright crawl)
+  Phase 0:  Fetch Audit Reference (from brand_comparisons, optional)
+  Phase 1:  Brand Extraction (Playwright crawl / business PDF parse)
   Phase 2:  TikTok Data Parsing
-  Phase 2b: Layer 1 parallel analyzers (new):
+  Phase 2b: Layer 1 parallel analyzers:
               - CompetitorAnalyzer → per-competitor summaries
               - BrandDocAnalyzer   → PDF/doc summaries
               - ProductAnalyzer    → product catalog summary
-  Phase 3:  Brand DNA Generation (ChatGPT gpt-5.4) — uses all Layer 1 summaries
-  Phase 4:  Plan Structure (ChatGPT gpt-5.4) — informed by product + competitors
-  Phase 5:  Content Generation per Post (DeepSeek)
+              - PDFParser          → product PDF / business PDF (if provided)
+  Phase 3:  Brand DNA Generation (ChatGPT gpt-5.4)
+  Phase 4a: Plan Summary — 30-day overview split by week (ChatGPT gpt-5.4)
+  Phase 4b: Weekly Detail Plans — day-level breakdown per week (ChatGPT gpt-5.4)
+  Phase 5:  Flatten week_plans → posts[]
+  Phase 6:  Content Generation per post (DeepSeek)
 """
 
 import asyncio
@@ -117,6 +121,52 @@ class SocialPlanWorker:
             brand_asset_ids = job.get("brand_asset_ids", [])
             tiktok_data = job.get("tiktok_data")  # {"bytes_b64": ..., "file_type": ...}
 
+            # ── Phase 0: Fetch Audit Reference (optional) ──────────
+            comparison_id = config.get("comparison_id", "")
+            audit_reference = {}
+            if comparison_id:
+                await set_job_status(
+                    self.redis,
+                    job_id,
+                    "processing",
+                    user_id=user_id,
+                    step="fetch_audit",
+                    progress=8,
+                    message="Đang lấy dữ liệu Social Audit...",
+                )
+                try:
+                    audit_doc = self.db["brand_comparisons"].find_one(
+                        {"comparison_id": comparison_id},
+                        {"_id": 0, "brand_comparison": 1},
+                    )
+                    if audit_doc and audit_doc.get("brand_comparison"):
+                        bc = audit_doc["brand_comparison"]
+                        audit_reference = {
+                            "comparison_id": comparison_id,
+                            "my_strengths": bc.get("my_strengths", []),
+                            "my_weaknesses": bc.get("my_weaknesses", []),
+                            "improvement_plan": bc.get("improvement_plan", ""),
+                            "content_strategy_recommendations": bc.get(
+                                "content_strategy_recommendations", []
+                            ),
+                            "design_recommendations": bc.get(
+                                "design_recommendations", []
+                            ),
+                            "summary": bc.get("summary", ""),
+                        }
+                        self.db["social_plans"].update_one(
+                            {"plan_id": plan_id},
+                            {
+                                "$set": {
+                                    "audit_reference": audit_reference,
+                                    "updated_at": datetime.now(timezone.utc),
+                                }
+                            },
+                        )
+                        logger.info(f"[Plan] Audit reference fetched: {comparison_id}")
+                except Exception as e:
+                    logger.warning(f"[Plan] Audit fetch failed (non-fatal): {e}")
+
             # ── Phase 1: Brand Extraction ──────────────────────────
             await set_job_status(
                 self.redis,
@@ -124,13 +174,44 @@ class SocialPlanWorker:
                 "processing",
                 user_id=user_id,
                 step="brand_extraction",
-                progress=10,
-                message=f"Đang crawl {len(config.get('website_urls', []))} websites...",
+                progress=12,
+                message=f"Đang crawl website / phân tích tài liệu doanh nghiệp...",
             )
 
             website_urls = config.get("website_urls", [])
+            business_pdf_asset_id = config.get("business_pdf_asset_id", "")
             crawl_results = []
-            if website_urls:
+
+            # Business PDF takes priority over website crawl
+            business_info = {}
+            if business_pdf_asset_id:
+                try:
+                    from src.services.pdf_parser import parse_asset_pdf
+
+                    asset_doc = self.db["social_plan_assets"].find_one(
+                        {"asset_id": business_pdf_asset_id, "user_id": user_id},
+                        {"_id": 0},
+                    )
+                    if asset_doc:
+                        business_info = await parse_asset_pdf(
+                            asset_doc, "business_info", self.plan_service.chatgpt
+                        )
+                        self.db["social_plans"].update_one(
+                            {"plan_id": plan_id},
+                            {
+                                "$set": {
+                                    "business_info": business_info,
+                                    "updated_at": datetime.now(timezone.utc),
+                                }
+                            },
+                        )
+                        logger.info(
+                            f"[Plan] Business PDF parsed: {business_pdf_asset_id}"
+                        )
+                except Exception as e:
+                    logger.warning(f"[Plan] Business PDF parse failed (non-fatal): {e}")
+
+            if website_urls and not business_pdf_asset_id:
                 try:
                     crawl_results = await crawl_brand_urls(website_urls)
                 except Exception as e:
@@ -145,7 +226,7 @@ class SocialPlanWorker:
                 "processing",
                 user_id=user_id,
                 step="tiktok_analysis",
-                progress=25,
+                progress=20,
                 message="Đang phân tích dữ liệu TikTok...",
             )
 
@@ -190,6 +271,9 @@ class SocialPlanWorker:
             brand_context_asset_ids = config.get("brand_context_asset_ids", [])
             products_list = config.get("products", [])
 
+            # If product PDF provided, parse it now (in parallel with other analyzers)
+            product_pdf_asset_id = config.get("product_pdf_asset_id", "")
+
             async def _empty_list():
                 return []
 
@@ -214,13 +298,36 @@ class SocialPlanWorker:
             loop = asyncio.get_event_loop()
             product_task = loop.run_in_executor(None, analyze_products, products_list)
 
-            competitor_summaries, brand_doc_summary, product_analysis = (
-                await asyncio.gather(
-                    competitor_coro,
-                    brand_doc_coro,
-                    product_task,
-                    return_exceptions=True,
-                )
+            # Product PDF parse (async, runs in parallel if provided)
+            async def _parse_product_pdf():
+                if not product_pdf_asset_id:
+                    return None
+                try:
+                    from src.services.pdf_parser import parse_asset_pdf
+
+                    asset_doc = self.db["social_plan_assets"].find_one(
+                        {"asset_id": product_pdf_asset_id, "user_id": user_id},
+                        {"_id": 0},
+                    )
+                    if asset_doc:
+                        return await parse_asset_pdf(
+                            asset_doc, "product_list", self.plan_service.chatgpt
+                        )
+                except Exception as e:
+                    logger.warning(f"[Plan] Product PDF parse failed (non-fatal): {e}")
+                return None
+
+            (
+                competitor_summaries,
+                brand_doc_summary,
+                product_analysis,
+                product_pdf_result,
+            ) = await asyncio.gather(
+                competitor_coro,
+                brand_doc_coro,
+                product_task,
+                _parse_product_pdf(),
+                return_exceptions=True,
             )
 
             # Safely handle any analyzer failures (non-fatal)
@@ -233,6 +340,35 @@ class SocialPlanWorker:
             if isinstance(product_analysis, Exception):
                 logger.error(f"Product analysis failed: {product_analysis}")
                 product_analysis = None
+            if isinstance(product_pdf_result, Exception):
+                logger.error(f"Product PDF parse failed: {product_pdf_result}")
+                product_pdf_result = None
+
+            # If product PDF yielded a list, use it to build richer product_analysis
+            if product_pdf_result and product_pdf_result.get("products"):
+                pdf_products = product_pdf_result["products"]
+                # Merge into config products and re-analyse
+                products_list = pdf_products
+                product_analysis_from_pdf = loop.run_in_executor(
+                    None, analyze_products, pdf_products
+                )
+                try:
+                    product_analysis = await product_analysis_from_pdf
+                except Exception:
+                    pass
+                # Persist parsed product list
+                self.db["social_plans"].update_one(
+                    {"plan_id": plan_id},
+                    {
+                        "$set": {
+                            "parsed_products": pdf_products,
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                    },
+                )
+                logger.info(
+                    f"[Plan] Product PDF contributed {len(pdf_products)} products"
+                )
 
             # Save analysis summaries to MongoDB
             self.db["social_plans"].update_one(
@@ -267,6 +403,7 @@ class SocialPlanWorker:
                 competitor_summaries=competitor_summaries or [],
                 brand_doc_summary=brand_doc_summary or "",
                 product_summary=(product_analysis or {}).get("summary", ""),
+                audit_reference=audit_reference or {},
             )
 
             # Merge primary_color from crawl data if brand_dna lacks it
@@ -288,20 +425,102 @@ class SocialPlanWorker:
                 },
             )
 
-            # ── Phase 4: Plan Structure ─────────────────────────────
+            # ── Phase 4a: Plan Summary ──────────────────────────────
+            await set_job_status(
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="plan_summary",
+                progress=55,
+                message="Đang tạo kế hoạch tổng quan 30 ngày...",
+            )
+
+            plan_summary = await self.plan_service.generate_plan_summary(
+                brand_dna=brand_dna,
+                config=config,
+                audit_reference=audit_reference,
+                business_info=business_info,
+                product_analysis=product_analysis,
+            )
+            self.db["social_plans"].update_one(
+                {"plan_id": plan_id},
+                {
+                    "$set": {
+                        "plan_summary": plan_summary,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+
+            # ── Phase 4b: Weekly Detail Plans ──────────────────────
+            await set_job_status(
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="weekly_plans",
+                progress=65,
+                message="Đang tạo kế hoạch chi tiết từng tuần...",
+            )
+
+            weeks = plan_summary.get("weeks", [])
+            posts_per_week = config.get("posts_per_week", 5)
+            week_plans: dict = {}
+            existing_topics: list = []
+
+            # Generate 2 weeks in parallel
+            for batch_start in range(0, len(weeks), 2):
+                batch = weeks[batch_start : batch_start + 2]
+                tasks = []
+                for w in batch:
+                    week_num = w.get("week", batch_start + 1)
+                    week_start_day = (week_num - 1) * posts_per_week + 1
+                    tasks.append(
+                        self.plan_service.generate_weekly_plan(
+                            week_summary=w,
+                            brand_dna=brand_dna,
+                            config=config,
+                            existing_topics=list(existing_topics),
+                            week_start_day=week_start_day,
+                        )
+                    )
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for w, result in zip(batch, results):
+                    week_num = w.get("week", batch_start + 1)
+                    if isinstance(result, Exception):
+                        logger.error(
+                            f"[Plan] Weekly plan week {week_num} failed: {result}"
+                        )
+                        week_plans[str(week_num)] = {"week": week_num, "days": []}
+                    else:
+                        week_plans[str(week_num)] = result
+                        existing_topics += [
+                            d.get("topic", "") for d in result.get("days", [])
+                        ]
+
+            self.db["social_plans"].update_one(
+                {"plan_id": plan_id},
+                {
+                    "$set": {
+                        "week_plans": week_plans,
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+
+            # ── Phase 5: Flatten week_plans → posts[] ──────────────
             await set_job_status(
                 self.redis,
                 job_id,
                 "processing",
                 user_id=user_id,
                 step="plan_structure",
-                progress=60,
-                message="Đang tạo cấu trúc kế hoạch 30 ngày...",
+                progress=72,
+                message="Đang cấu trúc từng bài viết...",
             )
 
-            posts = await self.plan_service.generate_plan_structure(
-                brand_dna, config, product_analysis=product_analysis
-            )
+            posts = self.plan_service.flatten_week_plans_to_posts(week_plans, config)
 
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},
@@ -315,7 +534,7 @@ class SocialPlanWorker:
                 },
             )
 
-            # ── Phase 5: Content Generation per Post ───────────────
+            # ── Phase 6: Content Generation per Post ───────────────
             await set_job_status(
                 self.redis,
                 job_id,

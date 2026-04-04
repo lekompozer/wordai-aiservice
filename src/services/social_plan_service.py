@@ -59,6 +59,7 @@ class SocialPlanService:
         competitor_summaries: Optional[List[Dict[str, Any]]] = None,
         brand_doc_summary: Optional[str] = None,
         product_summary: Optional[str] = None,
+        audit_reference: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate Brand DNA from all analysis layer summaries.
@@ -68,6 +69,7 @@ class SocialPlanService:
             competitor_summaries: list of compact competitor dicts
             brand_doc_summary: merged PDF/doc summary string
             product_summary: compact product catalog summary
+            audit_reference: snapshot from brand_comparisons (my_weaknesses, improvement_plan, etc.)
 
         Returns:
             Dict with brand_name, brand_voice, core_values, usp, target_audience,
@@ -79,6 +81,7 @@ class SocialPlanService:
 
         language = config.get("language", "vi")
         campaign_goal = config.get("campaign_goal", "awareness")
+        goals = config.get("goals", "")  # free-text goals (v2)
         target_audience = config.get("target_audience", "")
         business_name = config.get("business_name", "")
         industry = config.get("industry", "")
@@ -103,8 +106,24 @@ class SocialPlanService:
         if product_summary and product_summary.strip():
             product_block = f"\n=== SẢN PHẨM / DỊCH VỤ ===\n{product_summary[:800]}"
 
+        audit_block = ""
+        if audit_reference and isinstance(audit_reference, dict):
+            weaknesses = audit_reference.get("my_weaknesses", [])
+            improvement = audit_reference.get("improvement_plan", "")
+            recs = audit_reference.get("content_strategy_recommendations", [])
+            parts = []
+            if weaknesses:
+                parts.append("Điểm yếu hiện tại: " + "; ".join(weaknesses[:3]))
+            if improvement:
+                parts.append(f"Hướng cải thiện: {improvement[:300]}")
+            if recs:
+                parts.append("Đề xuất content: " + "; ".join(recs[:3]))
+            if parts:
+                audit_block = "\n=== PHÂN TÍCH SOCIAL AUDIT ===\n" + "\n".join(parts)
+
         platforms_str = ", ".join(platforms) if platforms else "TikTok, Facebook"
         industry_str = industry or "Chưa xác định"
+        goal_str = goals or campaign_goal
 
         prompt = f"""Phân tích data sau và tạo Brand DNA cho chiến lược nội dung mạng xã hội:
 
@@ -112,7 +131,7 @@ class SocialPlanService:
 Tên: {business_name}
 Ngành: {industry_str}
 Nền tảng target: {platforms_str}
-Mục tiêu chiến dịch: {campaign_goal}
+Mục tiêu: {goal_str}
 Đối tượng mục tiêu: {target_audience or "Chưa xác định"}
 Màu chính brand: {primary_color}
 
@@ -120,7 +139,7 @@ Màu chính brand: {primary_color}
 {website_text or "Không có dữ liệu website"}
 
 === TIKTOK CAPTIONS (50 bài gần nhất) ===
-{tiktok_text or "Không có dữ liệu TikTok"}{brand_doc_block}{product_block}{competitor_block}
+{tiktok_text or "Không có dữ liệu TikTok"}{brand_doc_block}{product_block}{competitor_block}{audit_block}
 
 === YÊU CẦU ===
 Ngôn ngữ output: {language}
@@ -347,6 +366,331 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         return normalized
 
     # ─────────────────────────────────────────
+    # Phase 4a: Plan Summary (30-day overview)
+    # ─────────────────────────────────────────
+
+    async def generate_plan_summary(
+        self,
+        brand_dna: Dict[str, Any],
+        config: Dict[str, Any],
+        audit_reference: Optional[Dict[str, Any]] = None,
+        business_info: Optional[Dict[str, Any]] = None,
+        product_analysis: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate a 30-day overview plan split into 4 weeks.
+        Uses ChatGPT gpt-5.4.
+
+        Returns:
+            {
+              "overview": "...",
+              "weeks": [
+                {
+                  "week": 1,
+                  "theme": "...",
+                  "objectives": "...",
+                  "style_notes": "...",
+                  "image_guidance": "...",
+                  "images_per_post": 1,
+                  "posts_count": 5,
+                  "weekly_goal": "..."
+                }, ...
+              ]
+            }
+        """
+        from src.services.product_analyzer import format_products_for_plan_prompt
+
+        language = config.get("language", "vi")
+        campaign_name = config.get("campaign_name", "")
+        goals = config.get("goals", config.get("campaign_goal", "awareness"))
+        platforms = config.get("platforms", [])
+        posts_per_week = config.get("posts_per_week", 5)
+        total_posts = min(posts_per_week * 4, 60)
+        package = config.get("package", "")
+
+        brand_name = brand_dna.get("brand_name", config.get("business_name", ""))
+        brand_voice = brand_dna.get("brand_voice", "")
+        usp = brand_dna.get("usp", "")
+        target_audience = brand_dna.get(
+            "target_audience", config.get("target_audience", "")
+        )
+        platforms_str = ", ".join(platforms) if platforms else "Facebook"
+
+        # Business info block
+        biz_block = ""
+        if business_info and isinstance(business_info, dict):
+            biz_parts = []
+            if business_info.get("description"):
+                biz_parts.append(f"Mô tả: {business_info['description'][:300]}")
+            if business_info.get("key_values"):
+                biz_parts.append(
+                    "Giá trị cốt lõi: " + ", ".join(business_info["key_values"][:4])
+                )
+            if business_info.get("competitive_advantages"):
+                biz_parts.append(
+                    "Lợi thế: " + ", ".join(business_info["competitive_advantages"][:2])
+                )
+            if biz_parts:
+                biz_block = "\n=== THÔNG TIN DOANH NGHIỆP ===\n" + "\n".join(biz_parts)
+
+        # Products block
+        product_block = ""
+        if product_analysis and product_analysis.get("product_list"):
+            product_block = (
+                "\n=== SẢN PHẨM ===\n"
+                + format_products_for_plan_prompt(product_analysis["product_list"])[
+                    :600
+                ]
+            )
+        elif config.get("products"):
+            names = [p.get("name", "") for p in config["products"] if p.get("name")]
+            if names:
+                product_block = "\n=== SẢN PHẨM ===\n" + ", ".join(names)
+
+        # Audit reference block
+        audit_block = ""
+        if audit_reference and isinstance(audit_reference, dict):
+            parts = []
+            if audit_reference.get("my_weaknesses"):
+                parts.append(
+                    "Điểm yếu hiện tại: "
+                    + "; ".join(audit_reference["my_weaknesses"][:3])
+                )
+            if audit_reference.get("improvement_plan"):
+                parts.append(
+                    f"Hướng cải thiện: {audit_reference['improvement_plan'][:300]}"
+                )
+            if audit_reference.get("content_strategy_recommendations"):
+                parts.append(
+                    "Đề xuất nội dung: "
+                    + "; ".join(audit_reference["content_strategy_recommendations"][:3])
+                )
+            if parts:
+                audit_block = (
+                    "\n=== PHÂN TÍCH SOCIAL AUDIT (THAM KHẢO) ===\n" + "\n".join(parts)
+                )
+
+        prompt = f"""Bạn là CMO của thương hiệu {brand_name}.
+
+CAMPAIGN: {campaign_name or 'Chiến dịch marketing tháng này'}
+MỤC TIÊU: {goals}
+KÊNH: {platforms_str} — {posts_per_week} bài/tuần trong 4 tuần, tổng {total_posts} bài
+
+BRAND DNA:
+- Giọng văn: {brand_voice}
+- USP: {usp}
+- Đối tượng: {target_audience}{biz_block}{product_block}{audit_block}
+
+Hãy tạo KẾ HOẠCH TỔNG QUAN 30 ngày (4 tuần) bao gồm:
+- Tổng quan chiến lược campaign
+- Chủ đề mỗi tuần
+- Mục tiêu cụ thể từng tuần
+- Hướng dẫn giọng văn & style tổng quát cho tuần đó
+- Hướng dẫn hình ảnh (màu sắc, bố cục, phong cách)
+- Số hình ảnh khuyến nghị mỗi bài (dựa trên kênh và package: {package})
+- Mục tiêu cuối tháng (ở tuần 4)
+
+Trả về JSON (chỉ JSON):
+{{
+  "overview": "Tổng quan chiến lược campaign 2-3 câu",
+  "weeks": [
+    {{
+      "week": 1,
+      "theme": "Chủ đề tuần",
+      "objectives": "Mục tiêu tuần này",
+      "style_notes": "Hướng dẫn giọng văn, tone, emoji, cấu trúc bài",
+      "image_guidance": "Hướng dẫn hình ảnh: màu sắc, bố cục, số ảnh/bài",
+      "images_per_post": 1,
+      "posts_count": {posts_per_week},
+      "weekly_goal": "Kết quả mong đợi cuối tuần"
+    }}
+  ]
+}}"""
+
+        response = await self.chatgpt.chat.completions.create(
+            model="gpt-5.4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là chuyên gia chiến lược nội dung mạng xã hội. Luôn trả về JSON hợp lệ.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=3000,
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        # Ensure weeks is a list
+        if not isinstance(result.get("weeks"), list):
+            result["weeks"] = []
+        for i, week in enumerate(result["weeks"]):
+            week.setdefault("week", i + 1)
+            week.setdefault("posts_count", posts_per_week)
+        logger.info(f"✅ Plan summary generated: {len(result.get('weeks', []))} weeks")
+        return result
+
+    # ─────────────────────────────────────────
+    # Phase 4b: Weekly Detail Plans
+    # ─────────────────────────────────────────
+
+    async def generate_weekly_plan(
+        self,
+        week_summary: Dict[str, Any],
+        brand_dna: Dict[str, Any],
+        config: Dict[str, Any],
+        existing_topics: Optional[List[str]] = None,
+        week_start_day: int = 1,
+        week_start_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generate daily breakdown for one week from the week_summary.
+        Uses ChatGPT gpt-5.4.
+
+        Returns:
+            {
+              "week": 1,
+              "days": [
+                {
+                  "day": 1, "date": "YYYY-MM-DD",
+                  "topic": "...", "content_pillar": "educational",
+                  "hook_direction": "...", "image_guidance": "...",
+                  "platform": "facebook"
+                }, ...
+              ]
+            }
+        """
+        language = config.get("language", "vi")
+        platforms = config.get("platforms", [])
+        primary_platform = platforms[0].lower() if platforms else "facebook"
+        posts_count = week_summary.get("posts_count", config.get("posts_per_week", 5))
+        week_num = week_summary.get("week", 1)
+        existing = existing_topics or []
+
+        brand_dna_short = {
+            "brand_name": brand_dna.get("brand_name"),
+            "brand_voice": brand_dna.get("brand_voice"),
+            "usp": brand_dna.get("usp"),
+        }
+
+        prompt = f"""Tạo KẾ HOẠCH CHI TIẾT tuần {week_num}.
+
+=== TÓM TẮT TUẦN {week_num} ===
+Chủ đề: {week_summary.get('theme', '')}
+Mục tiêu: {week_summary.get('objectives', '')}
+Giọng văn & style: {week_summary.get('style_notes', '')}
+Hướng dẫn hình ảnh: {week_summary.get('image_guidance', '')}
+
+=== BRAND DNA ===
+{json.dumps(brand_dna_short, ensure_ascii=False)}
+
+=== YÊU CẦU ===
+- Ngôn ngữ: {language}
+- Kênh chính: {primary_platform}
+- Số bài trong tuần: {posts_count}
+- Ngày bắt đầu (day số): {week_start_day}
+- Ngày bắt đầu (date): {week_start_date or 'tính từ day'}
+- Content mix: 40% educational, 20% promotional, 25% engagement, 15% entertaining
+- KHÔNG lặp topic: {json.dumps(existing[:15], ensure_ascii=False) if existing else '[]'}
+
+Với mỗi bài, trả về:
+- day (số ngày tuyệt đối, từ {week_start_day})
+- date (YYYY-MM-DD nếu biết)
+- topic (chủ đề cụ thể, không trùng)
+- content_pillar (educational/promotional/engagement/entertaining/brand_story/behind_scenes)
+- hook_direction (hướng viết câu mở đầu)
+- image_guidance (hướng dẫn hình ảnh cụ thể cho bài này)
+- platform
+
+Trả về JSON (chỉ JSON):
+{{"week": {week_num}, "days": [{{"day": N, "date": "YYYY-MM-DD", "topic": "...", "content_pillar": "...", "hook_direction": "...", "image_guidance": "...", "platform": "{primary_platform}"}}]}}"""
+
+        response = await self.chatgpt.chat.completions.create(
+            model="gpt-5.4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Bạn là chuyên gia social media marketing. Luôn trả về JSON hợp lệ.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=2000,
+            temperature=0.7,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        if not isinstance(result.get("days"), list):
+            result = {"week": week_num, "days": []}
+        result["week"] = week_num
+        logger.info(
+            f"✅ Weekly plan generated: week {week_num} → {len(result.get('days', []))} days"
+        )
+        return result
+
+    # ─────────────────────────────────────────
+    # Phase 5 helper: Flatten week_plans → posts[]
+    # ─────────────────────────────────────────
+
+    def flatten_week_plans_to_posts(
+        self,
+        week_plans: Dict[str, Any],
+        config: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """
+        Convert week_plans dict (from generate_weekly_plan) into a flat posts[] list,
+        adding post_id, date, and empty content fields.
+        """
+        import uuid as _uuid
+        from datetime import datetime as _dt, timedelta
+
+        start_date_str = config.get("start_date", "2026-04-01")
+        platforms = config.get("platforms", [])
+        primary_platform = platforms[0].lower() if platforms else "facebook"
+
+        try:
+            base_date = _dt.strptime(start_date_str, "%Y-%m-%d")
+        except Exception:
+            base_date = _dt(2026, 4, 1)
+
+        posts = []
+        for week_key in sorted(week_plans.keys(), key=lambda k: int(k)):
+            week_data = week_plans[week_key]
+            for day_item in week_data.get("days", []):
+                day = day_item.get("day", 1)
+                date_str = day_item.get("date") or (
+                    base_date + timedelta(days=day - 1)
+                ).strftime("%Y-%m-%d")
+                posts.append(
+                    {
+                        "post_id": f"post_{_uuid.uuid4().hex[:12]}",
+                        "day": day,
+                        "date": date_str,
+                        "platform": day_item.get("platform", primary_platform),
+                        "content_pillar": day_item.get("content_pillar", "educational"),
+                        "topic": day_item.get("topic", f"Post ngày {day}"),
+                        "image_style_hint": day_item.get("image_guidance", ""),
+                        "hook_direction": day_item.get("hook_direction", ""),
+                        "product_ref": day_item.get("product_ref"),
+                        "hook": None,
+                        "caption": None,
+                        "hashtags": None,
+                        "image_prompt": None,
+                        "cta": None,
+                        "image_url": None,
+                        "image_job_id": None,
+                        "image_generated_at": None,
+                        "custom_image_url": None,
+                    }
+                )
+
+        # Sort by day
+        posts.sort(key=lambda p: p["day"])
+        logger.info(f"✅ Flattened {len(posts)} posts from week_plans")
+        return posts
+
+    # ─────────────────────────────────────────
     # Phase 5: Content Generation per Post (DeepSeek)
     # ─────────────────────────────────────────
 
@@ -369,17 +713,24 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         instruction_part = (
             f"\nYêu cầu đặc biệt: {custom_instruction}" if custom_instruction else ""
         )
+        hook_direction = post.get("hook_direction", "")
+        hook_hint = f"\n- Hướng mở đầu: {hook_direction}" if hook_direction else ""
+        platforms = config.get("platforms", [])
+        platform_str = post.get("platform") or (
+            platforms[0].lower() if platforms else "facebook"
+        )
 
-        prompt = f"""Bạn là copywriter chuyên TikTok.
+        prompt = f"""Bạn là copywriter chuyên mạng xã hội ({platform_str}).
 
 === BRAND DNA ===
 {brand_dna_str}
 
 === BÀI POST CẦN VIẾT ===
-- Ngày: {post.get('day')} | Trụ nội dung: {post.get('content_pillar', 'educational')}
+- Ngày: {post.get('day')} | Kênh: {platform_str} | Trụ nội dung: {post.get('content_pillar', 'educational')}
 - Chủ đề: {post.get('topic', '')}
+- Hướng hình ảnh: {post.get('image_style_hint', '')}
 - Sản phẩm (nếu có): {post.get('product_ref') or 'Không có'}
-- Ngôn ngữ: {language}{instruction_part}
+- Ngôn ngữ: {language}{hook_hint}{instruction_part}
 
 Viết nội dung theo ĐÚNG giọng văn brand_voice ở trên.
 

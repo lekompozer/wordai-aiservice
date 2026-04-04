@@ -323,6 +323,11 @@ async def create_social_plan(
     tone: Optional[str] = Form(None),
     image_style: Optional[str] = Form("flat-design"),
     start_date: Optional[str] = Form(None),
+    campaign_name: Optional[str] = Form(None),
+    goals: Optional[str] = Form(None),  # Free text: what the user wants to achieve
+    comparison_id: Optional[str] = Form(None),  # bc_xxx from Social Audit (Phase 1)
+    business_pdf_asset_id: Optional[str] = Form(None),  # asset_id of business info PDF
+    product_pdf_asset_id: Optional[str] = Form(None),  # asset_id of product list PDF
     tiktok_data_file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
 ):
@@ -463,10 +468,17 @@ async def create_social_plan(
         "competitors": competitors_list,
         "brand_context_asset_ids": brand_context_ids,
         "style_attachment_ids": style_ids,
+        # Content Engine v2
+        "campaign_name": campaign_name or "",
+        "goals": goals or "",
+        "comparison_id": comparison_id or "",
+        "business_pdf_asset_id": business_pdf_asset_id or "",
+        "product_pdf_asset_id": product_pdf_asset_id or "",
     }
 
-    # Link asset drafts to this plan (brand images + brand docs + style refs)
-    all_asset_ids = asset_ids + brand_context_ids + style_ids
+    # Link asset drafts to this plan (brand images + brand docs + style refs + PDF assets)
+    pdf_asset_ids = [x for x in [business_pdf_asset_id, product_pdf_asset_id] if x]
+    all_asset_ids = asset_ids + brand_context_ids + style_ids + pdf_asset_ids
     if all_asset_ids:
         db["social_plan_assets"].update_many(
             {"asset_id": {"$in": all_asset_ids}, "user_id": user_id},
@@ -506,6 +518,7 @@ async def create_social_plan(
             "config": config,
             "brand_asset_ids": asset_ids,
             "tiktok_data": tiktok_data,
+            "comparison_id": comparison_id or "",
         }
     )
     await queue.redis_client.rpush("queue:social_plan_jobs", queue_payload)
@@ -533,6 +546,98 @@ async def create_social_plan(
 # ──────────────────────────────────────────────────────────
 # ② ANALYZE WEBSITE + BRAND PROFILES (static paths — before /{plan_id})
 # ──────────────────────────────────────────────────────────
+
+
+# ── POST /assets/parse-pdf ─────────────────────────────────
+class ParsePdfRequest(BaseModel):
+    asset_id: str
+    parse_type: str  # "business_info" | "product_list"
+
+
+@router.post("/assets/parse-pdf", summary="Parse a PDF asset into structured data")
+async def parse_pdf_asset(
+    body: ParsePdfRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Parse a previously uploaded PDF asset (brand_doc type) using GPT-4.
+    parse_type: "business_info" → brand/company info dict
+                "product_list"  → {products: [...], total: N}
+    Result is saved back to the asset document as `parsed_data`.
+    """
+    from src.services.pdf_parser import parse_asset_pdf
+    from src.clients.chatgpt_client import ChatGPTClient
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    asset_doc = db["social_plan_assets"].find_one(
+        {"asset_id": body.asset_id, "user_id": user_id}, {"_id": 0}
+    )
+    if not asset_doc:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    if body.parse_type not in ("business_info", "product_list"):
+        raise HTTPException(
+            status_code=400,
+            detail="parse_type must be 'business_info' or 'product_list'",
+        )
+
+    chatgpt = ChatGPTClient(api_key=os.getenv("OPENAI_API_KEY", ""))
+    try:
+        result = await parse_asset_pdf(asset_doc, body.parse_type, chatgpt)
+    except Exception as e:
+        logger.error(f"[parse-pdf] Failed for asset {body.asset_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"PDF parsing failed: {str(e)[:200]}"
+        )
+
+    db["social_plan_assets"].update_one(
+        {"asset_id": body.asset_id},
+        {"$set": {"parsed_data": result, "parse_type": body.parse_type}},
+    )
+
+    return {"asset_id": body.asset_id, "parse_type": body.parse_type, "result": result}
+
+
+# ── GET /competitor-social/brand-comparisons/{comparison_id}/strategy-hint ──
+@router.get(
+    "/competitor-social/brand-comparisons/{comparison_id}/strategy-hint",
+    summary="Return strategy hints from a Social Audit report",
+)
+async def get_strategy_hint(
+    comparison_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Returns the strategic section of a brand comparison report:
+    my_strengths, my_weaknesses, improvement_plan,
+    content_strategy_recommendations, design_recommendations, summary.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    doc = db["brand_comparisons"].find_one(
+        {"comparison_id": comparison_id, "user_id": user_id},
+        {"_id": 0, "comparison_id": 1, "brand_comparison": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Social Audit report not found")
+
+    bc = doc.get("brand_comparison") or {}
+    return {
+        "comparison_id": comparison_id,
+        "strategy": {
+            "my_strengths": bc.get("my_strengths", []),
+            "my_weaknesses": bc.get("my_weaknesses", []),
+            "improvement_plan": bc.get("improvement_plan", ""),
+            "content_strategy_recommendations": bc.get(
+                "content_strategy_recommendations", []
+            ),
+            "design_recommendations": bc.get("design_recommendations", []),
+            "summary": bc.get("summary", ""),
+        },
+    }
 
 
 class BrandProfileUpdateRequest(BaseModel):
