@@ -534,33 +534,7 @@ class SocialPlanWorker:
                 },
             )
 
-            # ── Phase 6: Content Generation per Post ───────────────
-            await set_job_status(
-                self.redis,
-                job_id,
-                "processing",
-                user_id=user_id,
-                step="content_generation",
-                progress=75,
-                message=f"Đang viết nội dung cho {len(posts)} posts...",
-            )
-
-            posts_with_content = await self.plan_service.generate_all_content(
-                brand_dna, posts, config
-            )
-
-            self.db["social_plans"].update_one(
-                {"plan_id": plan_id},
-                {
-                    "$set": {
-                        "posts": posts_with_content,
-                        "status": "content_ready",
-                        "updated_at": datetime.now(timezone.utc),
-                    }
-                },
-            )
-
-            # ── Done ────────────────────────────────────────────────
+            # ── Done — content generation is triggered per-post by user ──
             await set_job_status(
                 self.redis,
                 job_id,
@@ -569,10 +543,10 @@ class SocialPlanWorker:
                 plan_id=plan_id,
                 step="done",
                 progress=100,
-                message="Kế hoạch đã sẵn sàng!",
+                message=f"Kế hoạch {len(posts)} bài đã sẵn sàng! Chọn bài để tạo nội dung.",
             )
 
-            logger.info(f"✅ Plan {plan_id} completed successfully")
+            logger.info(f"✅ Plan {plan_id} structure ready ({len(posts)} posts)")
 
         except Exception as e:
             logger.error(f"❌ Plan job {job_id} failed: {e}", exc_info=True)

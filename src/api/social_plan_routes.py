@@ -55,6 +55,30 @@ PACKAGE_VND_MAP = {
     "60posts_4img": 1_800_000,
 }
 
+# Content generation quota per package (how many posts can get content generated free)
+PACKAGE_QUOTA_MAP = {
+    "30posts_0img": 30,
+    "30posts_1img": 30,
+    "30posts_2img": 30,
+    "60posts_0img": 60,
+    "60posts_1img": 60,
+    "60posts_2img": 60,
+    "60posts_3img": 60,
+    "60posts_4img": 60,
+}
+
+# Image generation quota per package (images_per_post × posts)
+PACKAGE_IMAGE_QUOTA_MAP = {
+    "30posts_0img": 0,
+    "30posts_1img": 30,
+    "30posts_2img": 60,
+    "60posts_0img": 0,
+    "60posts_1img": 60,
+    "60posts_2img": 120,
+    "60posts_3img": 180,
+    "60posts_4img": 240,
+}
+
 POINTS_REGEN_IMAGE = 4
 POINTS_REGEN_TEXT = 2
 
@@ -549,6 +573,13 @@ async def create_social_plan(
         "posts": [],
         "total_posts": 0,
         "images_generated": 0,
+        "content_generated": 0,  # number of posts with content (hook/caption) generated
+        "content_quota": PACKAGE_QUOTA_MAP[
+            package
+        ],  # free content gen quota from package
+        "image_quota": PACKAGE_IMAGE_QUOTA_MAP[
+            package
+        ],  # free image gen quota from package
         "job_id": job_id,
         "points_spent": required_points if not payment_order_id else 0,
         "payment_order_id": payment_order_id or None,
@@ -2085,6 +2116,170 @@ async def list_brand_comparisons(
 # ──────────────────────────────────────────────────────────
 
 
+# ── POST /{plan_id}/generate-content ──────────────────────
+class GenerateContentRequest(BaseModel):
+    post_ids: Optional[List[str]] = (
+        None  # subset; omit to generate for all without content
+    )
+
+
+@router.post(
+    "/{plan_id}/generate-content",
+    summary="Generate post content within plan quota (free)",
+)
+async def generate_content_batch(
+    plan_id: str,
+    body: GenerateContentRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate hook/caption/hashtags/cta for posts using the plan's content_quota.
+    - Within quota: FREE (content_generated < content_quota)
+    - Exceeds quota: 2 points per extra post (same as regenerate text)
+    - post_ids: specific posts to generate; omit = all posts without content
+    """
+    from src.services.social_plan_service import SocialPlanService
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {
+            "posts": 1,
+            "brand_dna": 1,
+            "config": 1,
+            "content_quota": 1,
+            "content_generated": 1,
+            "package": 1,
+        },
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    all_posts = plan.get("posts", [])
+    content_quota = plan.get("content_quota", 30)
+    content_generated = plan.get("content_generated", 0)
+
+    # Determine target posts
+    if body.post_ids:
+        target_posts = [p for p in all_posts if p["post_id"] in body.post_ids]
+    else:
+        # Default: all posts without content (hook is null/empty)
+        target_posts = [p for p in all_posts if not p.get("hook")]
+
+    if not target_posts:
+        return {
+            "generated": 0,
+            "quota_used": content_generated,
+            "quota_total": content_quota,
+        }
+
+    # Split into within-quota (free) vs over-quota (paid)
+    remaining_quota = max(0, content_quota - content_generated)
+    free_posts = target_posts[:remaining_quota]
+    paid_posts = target_posts[remaining_quota:]
+
+    # Deduct points for over-quota posts
+    points_needed = len(paid_posts) * POINTS_REGEN_TEXT
+    if points_needed > 0:
+        points_service = get_points_service()
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_needed,
+                service="social_plan_content_extra",
+                description=f"Content gen {len(paid_posts)} extra posts for plan {plan_id}",
+            )
+        except InsufficientPointsError:
+            if not free_posts:
+                raise HTTPException(
+                    status_code=402,
+                    detail=f"Hết quota miễn phí. Cần {points_needed} điểm cho {len(paid_posts)} bài.",
+                )
+            # Generate only free posts if can't afford paid
+            paid_posts = []
+
+    posts_to_generate = free_posts + paid_posts
+    plan_service = SocialPlanService()
+    brand_dna = plan.get("brand_dna", {})
+    config = plan.get("config", {})
+
+    # Generate content in batches
+    batch_size = 5
+    max_parallel = 3
+    batches = [
+        posts_to_generate[i : i + batch_size]
+        for i in range(0, len(posts_to_generate), batch_size)
+    ]
+
+    import asyncio as _asyncio
+
+    async def process_batch(batch):
+        results = []
+        for post in batch:
+            try:
+                content = await plan_service.generate_post_content(
+                    brand_dna, post, config
+                )
+                results.append((post["post_id"], content))
+            except Exception as e:
+                logger.error(f"Content gen failed for {post.get('post_id')}: {e}")
+                results.append((post["post_id"], None))
+        return results
+
+    succeeded = 0
+    for i in range(0, len(batches), max_parallel):
+        parallel = batches[i : i + max_parallel]
+        batch_results = await _asyncio.gather(
+            *[process_batch(b) for b in parallel], return_exceptions=True
+        )
+        for batch_result in batch_results:
+            if isinstance(batch_result, Exception):
+                continue
+            for post_id, content in batch_result:
+                if not content:
+                    continue
+                now = datetime.now(timezone.utc)
+                db["social_plans"].update_one(
+                    {"plan_id": plan_id, "posts.post_id": post_id},
+                    {
+                        "$set": {
+                            "posts.$.hook": content["hook"],
+                            "posts.$.caption": content["caption"],
+                            "posts.$.hashtags": content["hashtags"],
+                            "posts.$.image_prompt": content["image_prompt"],
+                            "posts.$.cta": content["cta"],
+                            "updated_at": now,
+                        }
+                    },
+                )
+                succeeded += 1
+
+    # Update quota counter
+    new_generated = content_generated + min(
+        succeeded, len(free_posts) + len(paid_posts)
+    )
+    db["social_plans"].update_one(
+        {"plan_id": plan_id},
+        {
+            "$set": {
+                "content_generated": new_generated,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+    return {
+        "generated": succeeded,
+        "free": len(free_posts),
+        "paid": len([p for p in paid_posts if p]),
+        "points_spent": len([p for p in paid_posts if p]) * POINTS_REGEN_TEXT,
+        "quota_used": new_generated,
+        "quota_total": content_quota,
+    }
+
+
 # ── PUT /{plan_id}/brand-dna ───────────────────────────────
 class BrandDnaUpdateRequest(BaseModel):
     brand_voice: Optional[str] = None
@@ -2568,7 +2763,13 @@ async def regenerate_post(
 
     plan = db["social_plans"].find_one(
         {"plan_id": plan_id, "user_id": user_id},
-        {"posts": 1, "brand_dna": 1, "config": 1},
+        {
+            "posts": 1,
+            "brand_dna": 1,
+            "config": 1,
+            "content_quota": 1,
+            "content_generated": 1,
+        },
     )
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -2583,26 +2784,36 @@ async def regenerate_post(
             status_code=400, detail="regenerate must be 'text', 'image', or 'both'"
         )
 
+    # First-time text generation uses quota (free). Re-generation costs points.
+    content_quota = plan.get("content_quota", 30)
+    content_generated = plan.get("content_generated", 0)
+    is_first_gen = not post.get("hook")  # post has no content yet
+    quota_available = content_generated < content_quota
+    use_quota = is_first_gen and quota_available and regen in ("text", "both")
+
     cost = 0
-    if regen in ("text", "both"):
+    if regen in ("text", "both") and not use_quota:
         cost += POINTS_REGEN_TEXT
     if regen in ("image", "both"):
         cost += POINTS_REGEN_IMAGE
 
     points_service = get_points_service()
-    try:
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=cost,
-            service=(
-                "social_plan_regenerate_text"
-                if regen == "text"
-                else "social_plan_regenerate_image"
-            ),
-            description=f"Regenerate {regen} for post {post_id}",
-        )
-    except InsufficientPointsError:
-        raise HTTPException(status_code=402, detail=f"Không đủ điểm. Cần {cost} điểm.")
+    if cost > 0:
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=cost,
+                service=(
+                    "social_plan_regenerate_text"
+                    if regen == "text"
+                    else "social_plan_regenerate_image"
+                ),
+                description=f"Regenerate {regen} for post {post_id}",
+            )
+        except InsufficientPointsError:
+            raise HTTPException(
+                status_code=402, detail=f"Không đủ điểm. Cần {cost} điểm."
+            )
 
     result = {"post_id": post_id, "points_spent": cost}
 
@@ -2632,7 +2843,14 @@ async def regenerate_post(
                     }
                 },
             )
+            # Increment quota counter if this was first-time generation within quota
+            if use_quota:
+                db["social_plans"].update_one(
+                    {"plan_id": plan_id},
+                    {"$inc": {"content_generated": 1}},
+                )
             result["new_content"] = new_content
+            result["used_quota"] = use_quota
         except Exception as e:
             logger.error(f"Text regen failed for {post_id}: {e}")
             raise HTTPException(
