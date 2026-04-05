@@ -1,34 +1,29 @@
 """
 Brand Crawler Service
 
-Pipeline (HTML → Markdown → LLM-ready text):
-  Primary:  Jina Reader API (r.jina.ai) — returns clean Markdown in 1 HTTP call,
-            strips nav/scripts/ads automatically, ~80% fewer tokens than raw HTML.
-  Fallback: Playwright headless browser — used when Jina fails or for color/logo
-            extraction (which Jina strips).
+Pipeline (pure Jina — no Playwright):
+  1. Jina Reader API (r.jina.ai) on entry URL → clean Markdown with embedded nav links
+  2. Parse links from Jina markdown → discover important sub-pages (About/Products/Pricing…)
+  3. Jina in parallel for up to 2 best sub-pages
+  4. Merge all Markdown into combined_text for LLM consumption
 
-Flow for discover_and_crawl_website():
-  1. Playwright on entry URL → extract brand colors, logo URL, nav links
-  2. Determine key sub-pages (About / Products / Pricing / Team) from nav links
-  3. Jina Reader in parallel for entry URL + up to 2 sub-pages → clean Markdown
-  4. Merge: combined_text = Jina markdowns, colors/logo from Playwright
+No Playwright. No headless browser. Fast, low-memory, reliable.
+User provides logo/images directly in the UI — no need to extract them from the site.
 """
 
 import asyncio
 import logging
+import re
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-CRAWL_TIMEOUT_MS = 15000
-JINA_TIMEOUT_S = 15
-MAX_BODY_CHARS = 2000  # Playwright fallback cap
-MAX_CHARS_PER_PAGE_JINA = 3500  # per-page Jina markdown cap (~875 tokens)
-MAX_URLS = 5
-MAX_JINA_PAGES = 3  # entry + up to 2 sub-pages via Jina
+JINA_TIMEOUT_S = 20
+MAX_CHARS_PER_PAGE_JINA = 4000  # per-page Jina markdown cap
+MAX_JINA_PAGES = 3  # entry + up to 2 sub-pages
 
 JINA_BASE = "https://r.jina.ai/"
 JINA_HEADERS = {
@@ -37,7 +32,7 @@ JINA_HEADERS = {
     "X-Timeout": str(JINA_TIMEOUT_S),
 }
 
-# Path keywords that identify important brand pages
+# Path segments that identify important brand pages
 _IMPORTANT_KEYWORDS = {
     "about",
     "about-us",
@@ -95,17 +90,14 @@ async def jina_fetch_markdown(url: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Sub-page discovery (Playwright, navigation links only)
+# Sub-page discovery from Jina markdown (no Playwright)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _score_path(url: str, base_origin: str) -> int:
-    """Return importance score 0–10 for a discovered URL."""
-    if not url.startswith(base_origin):
-        return 0
-    path = urlparse(url).path.lower().strip("/")
-    segs = [s for s in path.split("/") if s]
-    if len(segs) > 1 or "#" in url:
+def _score_path(path: str) -> int:
+    """Return importance score 0–10 for a URL path segment."""
+    segs = [s for s in path.lower().strip("/").split("/") if s]
+    if len(segs) > 1:
         return 0
     if not segs:
         return 3  # homepage
@@ -116,102 +108,41 @@ def _score_path(url: str, base_origin: str) -> int:
     return 0
 
 
-async def _playwright_meta(url: str) -> Dict[str, Any]:
+def _extract_subpages(markdown: str, base_url: str) -> List[str]:
     """
-    Use Playwright to extract: brand colors, logo URL, nav links.
-    Lightweight — does NOT extract body text (Jina handles that).
+    Parse markdown links from Jina output to discover internal sub-pages.
+    Returns up to (MAX_JINA_PAGES - 1) best sub-page URLs, scored by importance.
     """
-    from playwright.async_api import async_playwright
-
-    parsed = urlparse(url)
+    parsed = urlparse(base_url)
     base_origin = f"{parsed.scheme}://{parsed.netloc}"
+    entry_path = base_url.rstrip("/")
 
-    try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-            )
-            try:
-                page = await browser.new_page()
-                await page.set_extra_http_headers({"Accept-Language": "en,vi;q=0.9"})
-                await page.goto(
-                    url, wait_until="domcontentloaded", timeout=CRAWL_TIMEOUT_MS
-                )
-                await asyncio.sleep(1)
+    scored: Dict[str, int] = {}
 
-                data = await page.evaluate(
-                    """
-                (function() {
-                    var meta = function(name) {
-                        var el = document.querySelector('meta[name="' + name + '"], meta[property="' + name + '"], meta[property="og:' + name + '"]');
-                        return el ? el.getAttribute("content") : "";
-                    };
-                    var primaryColor = "";
-                    var themeEl = document.querySelector('meta[name="theme-color"]');
-                    if (themeEl) primaryColor = themeEl.getAttribute("content") || "";
-                    if (!primaryColor) {
-                        var root = getComputedStyle(document.documentElement);
-                        primaryColor = (root.getPropertyValue("--primary") ||
-                                        root.getPropertyValue("--brand-color") ||
-                                        root.getPropertyValue("--color-primary") ||
-                                        root.getPropertyValue("--primary-color") || "").trim();
-                    }
-                    var logoEl = document.querySelector("img.logo, img[alt*='logo' i], header img, nav img, .logo img, a[href='/'] img");
-                    var faviconEl = document.querySelector("link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
-                    var logoUrl = (logoEl ? (logoEl.src || logoEl.getAttribute("data-src") || "") : "") || (faviconEl ? faviconEl.href : "");
-                    var links = Array.from(document.querySelectorAll("a[href]")).map(function(a) { return a.href; });
-                    return {
-                        primary_color: primaryColor,
-                        logo_url: logoUrl,
-                        og_image: meta("image") || "",
-                        title: document.title || "",
-                        meta_description: meta("description") || "",
-                        links: links.slice(0, 80)
-                    };
-                })()
-                """
-                )
-                await browser.close()
-            except Exception:
-                await browser.close()
-                raise
-
-        # Score discovered links
-        scored = {}
-        for href in data.get("links", []):
+    # Match markdown links: [text](url) and bare URLs
+    patterns = [
+        r"\[(?:[^\]]*)\]\((https?://[^\s\)]+)\)",  # [text](https://...)
+        r"\[(?:[^\]]*)\]\((/[^\s\)]*)\)",  # [text](/relative)
+        r'https?://[^\s\)\]"\'<>]+',  # bare absolute URL
+    ]
+    for pattern in patterns:
+        for match in re.finditer(pattern, markdown):
+            href = match.group(1) if "(" in pattern else match.group(0)
+            # Resolve relative URLs
+            if href.startswith("/"):
+                href = base_origin + href
+            # Strip query/fragment
             href = href.split("?")[0].split("#")[0].rstrip("/")
-            if not href:
+            if not href.startswith(base_origin):
                 continue
-            score = _score_path(href, base_origin)
+            if href == entry_path:
+                continue
+            path = urlparse(href).path
+            score = _score_path(path)
             if score > 0:
                 scored[href] = max(scored.get(href, 0), score)
 
-        sub_urls = sorted(scored, key=lambda u: scored[u], reverse=True)[
-            :MAX_JINA_PAGES
-        ]
-
-        return {
-            "primary_color": data.get("primary_color", "").strip() or "#000000",
-            "logo_url": data.get("logo_url", ""),
-            "og_image": data.get("og_image", ""),
-            "title": data.get("title", ""),
-            "meta_description": data.get("meta_description", ""),
-            "sub_urls": sub_urls,
-            "success": True,
-        }
-
-    except Exception as e:
-        logger.warning(f"Playwright meta extraction failed for {url}: {e}")
-        return {
-            "primary_color": "#000000",
-            "logo_url": "",
-            "og_image": "",
-            "title": "",
-            "meta_description": "",
-            "sub_urls": [],
-            "success": False,
-        }
+    return sorted(scored, key=lambda u: scored[u], reverse=True)[: MAX_JINA_PAGES - 1]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -221,200 +152,115 @@ async def _playwright_meta(url: str) -> Dict[str, Any]:
 
 async def discover_and_crawl_website(entry_url: str) -> Dict[str, Any]:
     """
-    Full pipeline: discover sub-pages → Jina Markdown for content → merge.
+    Pure-Jina pipeline: fetch entry URL → discover sub-pages from markdown links
+    → fetch best sub-pages in parallel → merge.
 
-    Steps:
-      1. Playwright on entry_url → colors, logo, nav links (fast, metadata only)
-      2. Jina Reader on entry_url + up to 2 best sub-pages → clean Markdown
-      3. Merge into combined_text for LLM consumption
+    No Playwright. No headless browser.
+    User-provided logo/images are handled by the UI — not extracted here.
 
     Returns:
       {
-        combined_text: str,   # Markdown content from all crawled pages
-        primary_color: str,
-        logo_url: str,
-        discovered_urls: list[str],
-        title: str,
+        combined_text: str,       # Merged Markdown from all crawled pages
+        primary_color: str,       # Empty — user provides logo/branding directly
+        logo_url: str,            # Empty — user provides logo directly
+        discovered_urls: list,
+        title: str,               # From first Jina response header
         meta_description: str,
+        websites: list,
       }
     """
-    logger.info(f"[Crawler] Starting: {entry_url}")
+    logger.info(f"[Crawler] Starting (Jina-only): {entry_url}")
 
-    # Step 1: Playwright for metadata + nav discovery
-    meta = await _playwright_meta(entry_url)
-    sub_urls = meta.get("sub_urls", [])
+    # Step 1: Fetch entry URL via Jina
+    entry_md = await jina_fetch_markdown(entry_url)
 
-    # Determine pages to fetch via Jina (entry + up to 2 sub-pages, dedup)
-    jina_urls = [entry_url]
-    for u in sub_urls:
-        if u not in jina_urls and u.rstrip("/") != entry_url.rstrip("/"):
-            jina_urls.append(u)
-        if len(jina_urls) >= MAX_JINA_PAGES:
-            break
+    # Step 2: Discover sub-pages from markdown links
+    sub_urls: List[str] = []
+    if entry_md:
+        sub_urls = _extract_subpages(entry_md, entry_url)
+        logger.info(f"[Crawler] Discovered sub-pages: {sub_urls}")
 
-    logger.info(f"[Crawler] Jina fetching {len(jina_urls)} pages: {jina_urls}")
-
-    # Step 2: Jina in parallel
-    markdowns = await asyncio.gather(*[jina_fetch_markdown(u) for u in jina_urls])
-
-    # Step 3: Merge text — label each page section
-    text_parts = []
-    for url, md in zip(jina_urls, markdowns):
-        if md.strip():
-            text_parts.append(f"### [{url}]\n{md.strip()}")
-
-    # Fallback: if ALL Jina calls failed, use Playwright body text
-    if not any(markdowns):
-        logger.warning(
-            "[Crawler] All Jina calls failed — falling back to Playwright body text"
+    # Step 3: Build page list and fetch sub-pages in parallel
+    jina_urls = [entry_url] + sub_urls
+    if len(jina_urls) > 1:
+        sub_markdowns = await asyncio.gather(
+            *[jina_fetch_markdown(u) for u in sub_urls]
         )
-        fallback_results = await crawl_brand_urls([entry_url])
-        merged = merge_brand_data(fallback_results)
-        merged["discovered_urls"] = jina_urls
-        merged["primary_color"] = meta.get("primary_color", "#000000")
-        merged["logo_url"] = meta.get("logo_url", "")
-        return merged
+    else:
+        sub_markdowns = []
+
+    all_markdowns = [entry_md] + list(sub_markdowns)
+
+    # Step 4: Merge — label each section by source URL
+    text_parts = []
+    for url, md in zip(jina_urls, all_markdowns):
+        if md and md.strip():
+            text_parts.append(f"### [{url}]\n{md.strip()}")
 
     combined_text = "\n\n---\n\n".join(text_parts)
     logger.info(
-        f"[Crawler] ✅ Combined text: {len(combined_text)} chars from {len(text_parts)} pages"
+        f"[Crawler] ✅ Combined: {len(combined_text)} chars from {len(text_parts)} pages"
     )
+
+    # Extract title from first line of Jina markdown (format: "Title: XYZ")
+    title = ""
+    meta_description = ""
+    for line in entry_md.splitlines():
+        line = line.strip()
+        if line.startswith("Title:"):
+            title = line[len("Title:") :].strip()
+        elif line.startswith("Description:"):
+            meta_description = line[len("Description:") :].strip()
+        if title and meta_description:
+            break
 
     return {
         "combined_text": combined_text,
-        "primary_color": meta.get("primary_color", "#000000"),
-        "logo_url": meta.get("logo_url", ""),
-        "og_image": meta.get("og_image", ""),
-        "title": meta.get("title", ""),
-        "meta_description": meta.get("meta_description", ""),
+        "primary_color": "",  # User provides branding via UI
+        "logo_url": "",  # User provides logo via UI
+        "og_image": "",
+        "title": title,
+        "meta_description": meta_description,
         "discovered_urls": jina_urls,
         "websites": [
-            {"url": u, "success": bool(md.strip())}
-            for u, md in zip(jina_urls, markdowns)
+            {"url": u, "success": bool(md and md.strip())}
+            for u, md in zip(jina_urls, all_markdowns)
         ],
     }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Legacy helpers (used by social plan pipeline — unchanged API)
+# Legacy stubs — kept for import compatibility, no longer use Playwright
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 async def crawl_brand_url(url: str) -> Dict[str, Any]:
-    """
-    Crawl a single URL and extract brand data (Playwright).
-    Kept for legacy social plan pipeline compatibility.
-    For brand analysis, use discover_and_crawl_website() instead.
-    """
-    try:
-        from playwright.async_api import async_playwright
-
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-            )
-            try:
-                page = await browser.new_page()
-                await page.set_extra_http_headers({"Accept-Language": "en,vi;q=0.9"})
-                await page.goto(
-                    url, wait_until="domcontentloaded", timeout=CRAWL_TIMEOUT_MS
-                )
-                await asyncio.sleep(1)
-
-                data = await page.evaluate(
-                    """
-                (function() {
-                    var meta = function(name) {
-                        var el = document.querySelector('meta[name="' + name + '"], meta[property="' + name + '"], meta[property="og:' + name + '"]');
-                        return el ? el.getAttribute("content") : "";
-                    };
-                    var themeEl = document.querySelector('meta[name="theme-color"]');
-                    var primary = themeEl ? themeEl.getAttribute("content") || "" : "";
-                    if (!primary) {
-                        var root = getComputedStyle(document.documentElement);
-                        primary = (root.getPropertyValue("--primary") ||
-                                   root.getPropertyValue("--brand-color") ||
-                                   root.getPropertyValue("--color-primary") ||
-                                   root.getPropertyValue("--primary-color") || "").trim();
-                    }
-                    if (!primary) {
-                        var header = document.querySelector("header, nav");
-                        if (header) primary = getComputedStyle(header).backgroundColor || "";
-                    }
-                    var h1 = document.querySelector("h1");
-                    var headingFont = h1 ? getComputedStyle(h1).fontFamily : "";
-                    var bodyText = (document.body.innerText || document.body.textContent || "").slice(0, 2000);
-                    var logoEl = document.querySelector("img.logo, img[alt*='logo' i], header img, nav img, .logo img, a[href='/'] img");
-                    var faviconEl = document.querySelector("link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
-                    return {
-                        title: document.title || "",
-                        meta_description: meta("description") || "",
-                        og_image: meta("image") || "",
-                        h1_texts: Array.from(document.querySelectorAll("h1")).map(function(el) { return el.textContent.trim(); }).filter(Boolean).slice(0, 5),
-                        h2_texts: Array.from(document.querySelectorAll("h2")).map(function(el) { return el.textContent.trim(); }).filter(Boolean).slice(0, 10),
-                        body_text: bodyText.trim(),
-                        primary_color: primary || "",
-                        heading_font: headingFont.split(",")[0].replace(/['"]/g, "").trim(),
-                        body_font: getComputedStyle(document.body).fontFamily.split(",")[0].replace(/['"]/g, "").trim(),
-                        logo_url: (logoEl ? (logoEl.src || logoEl.getAttribute("data-src") || "") : "") || (faviconEl ? faviconEl.href : "")
-                    };
-                })()
-                """
-                )
-
-                return {
-                    "url": url,
-                    "title": data.get("title", ""),
-                    "meta_description": data.get("meta_description", ""),
-                    "og_image": data.get("og_image", ""),
-                    "h1_texts": data.get("h1_texts", []),
-                    "h2_texts": data.get("h2_texts", []),
-                    "body_text": data.get("body_text", "")[:MAX_BODY_CHARS],
-                    "colors": {
-                        "primary": data.get("primary_color", "").strip() or "#000000"
-                    },
-                    "fonts": {
-                        "heading": data.get("heading_font", ""),
-                        "body": data.get("body_font", ""),
-                    },
-                    "logo_url": data.get("logo_url", ""),
-                    "success": True,
-                }
-            finally:
-                await browser.close()
-
-    except Exception as e:
-        logger.warning(f"Failed to crawl {url}: {e}")
-        return {
-            "url": url,
-            "title": "",
-            "meta_description": "",
-            "og_image": "",
-            "h1_texts": [],
-            "h2_texts": [],
-            "body_text": "",
-            "colors": {"primary": "#000000"},
-            "fonts": {},
-            "logo_url": "",
-            "success": False,
-            "error": str(e),
-        }
+    """Legacy stub — delegates to Jina."""
+    md = await jina_fetch_markdown(url)
+    return {
+        "url": url,
+        "title": "",
+        "meta_description": "",
+        "og_image": "",
+        "h1_texts": [],
+        "h2_texts": [],
+        "body_text": md[:2000] if md else "",
+        "colors": {"primary": "#000000"},
+        "fonts": {},
+        "logo_url": "",
+        "success": bool(md),
+    }
 
 
 async def crawl_brand_urls(urls: List[str]) -> List[Dict[str, Any]]:
-    """Crawl multiple URLs sequentially (max 5). Sequential to avoid OOM on constrained servers."""
+    """Legacy stub — crawls via Jina (no Playwright)."""
     if not urls:
         return []
-    urls = urls[:MAX_URLS]
-    logger.info(f"🌐 Crawling {len(urls)} URLs sequentially (Playwright)...")
-    results = []
-    for u in urls:
-        try:
-            result = await crawl_brand_url(u)
-        except Exception as e:
-            result = e
-        results.append(result)
+    urls = urls[:5]
+    logger.info(f"🌐 Crawling {len(urls)} URLs via Jina (no Playwright)...")
+    results = await asyncio.gather(
+        *[crawl_brand_url(u) for u in urls], return_exceptions=True
+    )
     output = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):
@@ -441,7 +287,7 @@ async def crawl_brand_urls(urls: List[str]) -> List[Dict[str, Any]]:
 
 
 def merge_brand_data(crawl_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Merge multiple Playwright crawl results. Legacy helper."""
+    """Merge multiple crawl results into combined_text."""
     successful = [r for r in crawl_results if r.get("success")]
     if not successful:
         return {
@@ -450,14 +296,6 @@ def merge_brand_data(crawl_results: List[Dict[str, Any]]) -> Dict[str, Any]:
             "primary_color": "#000000",
             "logo_url": "",
         }
-
-    primary_color = ""
-    logo_url = ""
-    for r in successful:
-        if not primary_color and r.get("colors", {}).get("primary"):
-            primary_color = r["colors"]["primary"]
-        if not logo_url and r.get("logo_url"):
-            logo_url = r["logo_url"]
 
     text_parts = []
     for r in successful:
@@ -476,7 +314,7 @@ def merge_brand_data(crawl_results: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {
         "websites": crawl_results,
         "combined_text": "\n\n---\n\n".join(text_parts),
-        "primary_color": primary_color or "#000000",
-        "logo_url": logo_url,
-        "fonts": successful[0].get("fonts", {}) if successful else {},
+        "primary_color": "#000000",
+        "logo_url": "",
+        "fonts": {},
     }
