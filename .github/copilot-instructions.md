@@ -1,5 +1,37 @@
 # GitHub Copilot Instructions - WordAI Backend System
 
+## ⚠️ CRITICAL: User Points System — Correct MongoDB Collection
+
+**ALWAYS use `user_subscriptions` collection for reading/writing user points.**
+
+```bash
+# ✅ CORRECT: Check user points
+docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password \
+  --authenticationDatabase admin --eval \
+  "db.user_subscriptions.findOne({user_id: 'UID'}, {user_id:1,plan:1,points_remaining:1,points_total:1,points_used:1})"
+
+# ✅ CORRECT: Manually set points for a user
+docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password \
+  --authenticationDatabase admin --eval \
+  "db.user_subscriptions.updateOne({user_id: 'UID'}, {\$set: {points_remaining: 5000, points_total: 5270}})"
+```
+
+**Fields in `user_subscriptions`:**
+- `user_id` — Firebase UID
+- `plan` — `"free"` / `"premium"` / `"vip"`
+- `points_remaining` — **What the frontend shows as current balance**
+- `points_total` — Total points ever allocated
+- `points_used` — Total points consumed
+
+**Backend service:** `src/services/subscription_service.py` → `db["user_subscriptions"]`
+**API endpoint:** `GET /points/balance` reads from `user_subscriptions.points_remaining`
+
+**❌ WRONG collections — DO NOT update these for user points:**
+- `users` — has a `points` field but frontend does NOT read it
+- `user_conversation_subscription` — completely different service (conversation unlocks)
+
+---
+
 ## Primary Reference
 
 **ALWAYS read and follow:** `/SYSTEM_REFERENCE.md` - Complete system documentation
@@ -29,6 +61,31 @@ This file contains:
 - Default in `src/clients/chatgpt_client.py`: `model = "gpt-5.4"`
 - Used for: brand analysis, 30-day social marketing plan structure, test generation fallback
 - DO NOT use `gpt-4o`, `gpt-4o-latest`, `gpt-4-turbo`, or any older version
+
+**⚠️ CRITICAL: `gpt-5.4` uses `max_completion_tokens`, NOT `max_tokens`**
+- `max_tokens` → **400 Bad Request** (`unsupported_parameter` error)
+- Always use `max_completion_tokens=32000` (default for all plan/content generation)
+- ❌ WRONG: `max_tokens=2000`
+- ✅ CORRECT: `max_completion_tokens=32000`
+
+```python
+# ✅ CORRECT — gpt-5.4 API call
+response = await client.chat.completions.create(
+    model="gpt-5.4",
+    messages=[...],
+    max_completion_tokens=32000,   # NOT max_tokens!
+    temperature=0.7,
+    response_format={"type": "json_object"},
+)
+
+# ❌ WRONG — causes 400 error with gpt-5.4
+response = await client.chat.completions.create(
+    model="gpt-5.4",
+    messages=[...],
+    max_tokens=2000,   # WILL FAIL!
+)
+```
+
 ```python
 from src.clients.chatgpt_client import ChatGPTClient
 

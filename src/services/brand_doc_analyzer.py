@@ -110,7 +110,7 @@ Trả về đoạn tóm tắt ngắn gọn (không cần JSON)."""
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=200,
+            max_completion_tokens=32000,
             temperature=0.2,
         )
         return response.choices[0].message.content.strip()
@@ -174,7 +174,7 @@ Trả về tóm tắt cuối (không cần JSON, không cần tiêu đề)."""
                 {"role": "system", "content": "Tóm tắt tài liệu thương hiệu ngắn gọn."},
                 {"role": "user", "content": merge_prompt},
             ],
-            max_tokens=250,
+            max_completion_tokens=32000,
             temperature=0.2,
         )
         return response.choices[0].message.content.strip()

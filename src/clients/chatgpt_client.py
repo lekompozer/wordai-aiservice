@@ -123,7 +123,7 @@ class ChatGPTClient:
                 stream = self.client.chat.completions.create(
                     model=model_to_use,
                     messages=prepared_messages,
-                    max_tokens=4000,
+                    max_completion_tokens=32000,
                     temperature=0.2,
                     stream=True,
                 )
@@ -238,7 +238,10 @@ class ChatGPTClient:
             )
 
             response = self.client.chat.completions.create(
-                model=model_to_use, messages=messages, max_tokens=4000, temperature=0.2
+                model=model_to_use,
+                messages=messages,
+                max_completion_tokens=32000,
+                temperature=0.2,
             )
 
             result = response.choices[0].message.content

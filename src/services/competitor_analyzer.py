@@ -141,7 +141,7 @@ Chỉ trả về JSON, không text khác."""
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=600,
+            max_completion_tokens=32000,
             temperature=0.3,
             response_format={"type": "json_object"},
         )

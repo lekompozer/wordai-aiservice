@@ -102,7 +102,7 @@ async def parse_business_pdf(pdf_bytes: bytes, llm_client) -> Dict[str, Any]:
                     },
                     {"role": "user", "content": chunk[:CHUNK_SIZE_CHARS]},
                 ],
-                max_tokens=500,
+                max_completion_tokens=32000,
                 temperature=0.1,
             )
             chunk_summaries.append(resp.choices[0].message.content.strip())
@@ -145,7 +145,7 @@ Trả về JSON (chỉ JSON, không text khác):
                 },
                 {"role": "user", "content": extraction_prompt},
             ],
-            max_tokens=1000,
+            max_completion_tokens=32000,
             temperature=0.1,
             response_format={"type": "json_object"},
         )
@@ -204,7 +204,7 @@ Trả về JSON array (chỉ JSON, không text khác):
                     },
                     {"role": "user", "content": extraction_prompt},
                 ],
-                max_tokens=1500,
+                max_completion_tokens=32000,
                 temperature=0.1,
                 response_format={"type": "json_object"},
             )
