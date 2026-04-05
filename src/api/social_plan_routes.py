@@ -2336,27 +2336,21 @@ async def retry_social_plan(
     }
 
 
-# ── POST /{plan_id}/generate-content ──────────────────────
-class GenerateContentRequest(BaseModel):
-    post_ids: Optional[List[str]] = (
-        None  # subset; omit to generate for all without content
-    )
-
-
+# ── POST /{plan_id}/generate-content/day/{day_number} ─────
 @router.post(
-    "/{plan_id}/generate-content",
-    summary="Generate post content within plan quota (free)",
+    "/{plan_id}/generate-content/day/{day_number}",
+    summary="Generate content for a single day (synchronous, priority)",
 )
-async def generate_content_batch(
+async def generate_content_for_day(
     plan_id: str,
-    body: GenerateContentRequest,
+    day_number: int,
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Generate hook/caption/hashtags/cta for posts using the plan's content_quota.
-    - Within quota: FREE (content_generated < content_quota)
-    - Exceeds quota: 2 points per extra post (same as regenerate text)
-    - post_ids: specific posts to generate; omit = all posts without content
+    Generate hook/caption/hashtags/cta for all posts on a specific day.
+    - This call is synchronous (~3-10s depending on number of posts that day).
+    - Within quota: FREE; beyond quota: 2 points/post.
+    - Already-generated posts (hook != null) are skipped automatically.
     """
     from src.services.social_plan_service import SocialPlanService
 
@@ -2371,7 +2365,139 @@ async def generate_content_batch(
             "config": 1,
             "content_quota": 1,
             "content_generated": 1,
-            "package": 1,
+        },
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    all_posts = plan.get("posts", [])
+    day_posts = [p for p in all_posts if p.get("day") == day_number]
+
+    if not day_posts:
+        raise HTTPException(
+            status_code=404, detail=f"No posts found for day {day_number}"
+        )
+
+    # Skip already-generated posts
+    target_posts = [p for p in day_posts if not p.get("hook")]
+    if not target_posts:
+        return {
+            "generated": 0,
+            "skipped": len(day_posts),
+            "message": f"Ngày {day_number} đã được tạo nội dung rồi.",
+        }
+
+    content_quota = plan.get("content_quota", 30)
+    content_generated = plan.get("content_generated", 0)
+    remaining_quota = max(0, content_quota - content_generated)
+    free_posts = target_posts[:remaining_quota]
+    paid_posts = target_posts[remaining_quota:]
+
+    points_needed = len(paid_posts) * POINTS_REGEN_TEXT
+    if points_needed > 0:
+        points_service = get_points_service()
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_needed,
+                service="social_plan_content_extra",
+                description=f"Content gen {len(paid_posts)} extra posts day {day_number} plan {plan_id}",
+            )
+        except InsufficientPointsError:
+            if not free_posts:
+                raise HTTPException(
+                    status_code=402,
+                    detail=f"Hết quota miễn phí. Cần {points_needed} điểm cho {len(paid_posts)} bài.",
+                )
+            paid_posts = []
+
+    posts_to_generate = free_posts + paid_posts
+    plan_service = SocialPlanService()
+    brand_dna = plan.get("brand_dna", {})
+    config = plan.get("config", {})
+
+    succeeded = 0
+    generated_posts = []
+    for post in posts_to_generate:
+        try:
+            content = await plan_service.generate_post_content(brand_dna, post, config)
+            now = datetime.now(timezone.utc)
+            db["social_plans"].update_one(
+                {"plan_id": plan_id, "posts.post_id": post["post_id"]},
+                {
+                    "$set": {
+                        "posts.$.hook": content["hook"],
+                        "posts.$.caption": content["caption"],
+                        "posts.$.hashtags": content["hashtags"],
+                        "posts.$.image_prompt": content["image_prompt"],
+                        "posts.$.cta": content["cta"],
+                        "updated_at": now,
+                    }
+                },
+            )
+            succeeded += 1
+            generated_posts.append({**post, **content})
+        except Exception as e:
+            logger.error(f"Content gen failed for post {post.get('post_id')}: {e}")
+
+    if succeeded > 0:
+        db["social_plans"].update_one(
+            {"plan_id": plan_id},
+            {
+                "$inc": {"content_generated": succeeded},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+        )
+
+    return {
+        "day": day_number,
+        "generated": succeeded,
+        "skipped": len(day_posts) - len(target_posts),
+        "free": len(free_posts),
+        "paid": len(paid_posts),
+        "points_spent": len(paid_posts) * POINTS_REGEN_TEXT,
+        "posts": generated_posts,
+    }
+
+
+# ── POST /{plan_id}/generate-content ──────────────────────
+class GenerateContentRequest(BaseModel):
+    post_ids: Optional[List[str]] = (
+        None  # subset; omit to generate for all without content
+    )
+
+
+@router.post(
+    "/{plan_id}/generate-content",
+    summary="Queue per-day content generation jobs (async batch)",
+)
+async def generate_content_batch(
+    plan_id: str,
+    body: GenerateContentRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Enqueue one content generation job per day for all days that still lack content.
+    - Jobs are processed by social-plan-content-worker asynchronously.
+    - Each day's result is saved immediately as it completes (no need to wait).
+    - Skips days where ALL posts already have content (resume-safe).
+    - Within quota: FREE; beyond quota: 2 points/post.
+    - In-app + email notification sent when entire batch is done.
+    - Returns immediately with queued_days + batch_job_id.
+    """
+    user_id = current_user["uid"]
+    user_email = current_user.get("email", "")
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {
+            "posts": 1,
+            "brand_dna": 1,
+            "config": 1,
+            "content_quota": 1,
+            "content_generated": 1,
+            "campaign_name": 1,
         },
     )
     if not plan:
@@ -2380,28 +2506,27 @@ async def generate_content_batch(
     all_posts = plan.get("posts", [])
     content_quota = plan.get("content_quota", 30)
     content_generated = plan.get("content_generated", 0)
+    campaign_name = plan.get("campaign_name", "Chiến dịch")
 
     # Determine target posts
     if body.post_ids:
         target_posts = [p for p in all_posts if p["post_id"] in body.post_ids]
     else:
-        # Default: all posts without content (hook is null/empty)
         target_posts = [p for p in all_posts if not p.get("hook")]
 
     if not target_posts:
         return {
-            "generated": 0,
+            "queued_days": 0,
             "quota_used": content_generated,
             "quota_total": content_quota,
+            "message": "Tất cả bài đã có nội dung rồi.",
         }
 
-    # Split into within-quota (free) vs over-quota (paid)
+    # Calculate point cost for over-quota posts
     remaining_quota = max(0, content_quota - content_generated)
-    free_posts = target_posts[:remaining_quota]
     paid_posts = target_posts[remaining_quota:]
-
-    # Deduct points for over-quota posts
     points_needed = len(paid_posts) * POINTS_REGEN_TEXT
+
     if points_needed > 0:
         points_service = get_points_service()
         try:
@@ -2412,91 +2537,60 @@ async def generate_content_batch(
                 description=f"Content gen {len(paid_posts)} extra posts for plan {plan_id}",
             )
         except InsufficientPointsError:
+            free_posts = target_posts[:remaining_quota]
             if not free_posts:
                 raise HTTPException(
                     status_code=402,
                     detail=f"Hết quota miễn phí. Cần {points_needed} điểm cho {len(paid_posts)} bài.",
                 )
-            # Generate only free posts if can't afford paid
+            # Only enqueue free posts
+            target_posts = free_posts
             paid_posts = []
+            points_needed = 0
 
-    posts_to_generate = free_posts + paid_posts
-    plan_service = SocialPlanService()
-    brand_dna = plan.get("brand_dna", {})
-    config = plan.get("config", {})
+    # Group target posts by day
+    from collections import defaultdict
 
-    # Generate content in batches
-    batch_size = 5
-    max_parallel = 3
-    batches = [
-        posts_to_generate[i : i + batch_size]
-        for i in range(0, len(posts_to_generate), batch_size)
-    ]
+    days_map: dict = defaultdict(list)
+    for p in target_posts:
+        days_map[p.get("day", 0)].append(p["post_id"])
 
-    import asyncio as _asyncio
+    if not days_map:
+        return {"queued_days": 0, "message": "Không có ngày nào cần tạo nội dung."}
 
-    async def process_batch(batch):
-        results = []
-        for post in batch:
-            try:
-                content = await plan_service.generate_post_content(
-                    brand_dna, post, config
-                )
-                results.append((post["post_id"], content))
-            except Exception as e:
-                logger.error(f"Content gen failed for {post.get('post_id')}: {e}")
-                results.append((post["post_id"], None))
-        return results
+    batch_job_id = f"batch_{uuid.uuid4().hex[:16]}"
+    total_days = len(days_map)
 
-    succeeded = 0
-    for i in range(0, len(batches), max_parallel):
-        parallel = batches[i : i + max_parallel]
-        batch_results = await _asyncio.gather(
-            *[process_batch(b) for b in parallel], return_exceptions=True
-        )
-        for batch_result in batch_results:
-            if isinstance(batch_result, Exception):
-                continue
-            for post_id, content in batch_result:
-                if not content:
-                    continue
-                now = datetime.now(timezone.utc)
-                db["social_plans"].update_one(
-                    {"plan_id": plan_id, "posts.post_id": post_id},
-                    {
-                        "$set": {
-                            "posts.$.hook": content["hook"],
-                            "posts.$.caption": content["caption"],
-                            "posts.$.hashtags": content["hashtags"],
-                            "posts.$.image_prompt": content["image_prompt"],
-                            "posts.$.cta": content["cta"],
-                            "updated_at": now,
-                        }
-                    },
-                )
-                succeeded += 1
-
-    # Update quota counter
-    new_generated = content_generated + min(
-        succeeded, len(free_posts) + len(paid_posts)
-    )
-    db["social_plans"].update_one(
-        {"plan_id": plan_id},
-        {
-            "$set": {
-                "content_generated": new_generated,
-                "updated_at": datetime.now(timezone.utc),
+    # Enqueue one job per day
+    queue = await _get_social_plan_queue()
+    for day_number, post_ids in sorted(days_map.items()):
+        job_payload = json.dumps(
+            {
+                "task_type": "content_day",
+                "job_id": f"cjob_{uuid.uuid4().hex[:12]}",
+                "plan_id": plan_id,
+                "user_id": user_id,
+                "day_number": day_number,
+                "post_ids": post_ids,
+                "batch_job_id": batch_job_id,
+                "campaign_name": campaign_name,
+                "user_email": user_email,
+                "total_days_in_batch": total_days,
             }
-        },
+        )
+        await queue.redis_client.rpush("queue:social_plan_content_jobs", job_payload)
+
+    logger.info(
+        f"Enqueued {total_days} content jobs (batch={batch_job_id}) for plan {plan_id}"
     )
 
     return {
-        "generated": succeeded,
-        "free": len(free_posts),
-        "paid": len([p for p in paid_posts if p]),
-        "points_spent": len([p for p in paid_posts if p]) * POINTS_REGEN_TEXT,
-        "quota_used": new_generated,
+        "queued_days": total_days,
+        "batch_job_id": batch_job_id,
+        "points_spent": points_needed,
+        "quota_used": content_generated,
         "quota_total": content_quota,
+        "message": f"Đã xếp hàng {total_days} ngày. Bạn sẽ nhận thông báo khi hoàn thành.",
     }
 
 

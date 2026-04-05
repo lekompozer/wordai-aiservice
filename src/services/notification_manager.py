@@ -123,6 +123,50 @@ class NotificationManager:
             logger.error(f"❌ Error creating share notification: {e}")
             return None
 
+    def create_social_plan_content_done_notification(
+        self,
+        user_id: str,
+        plan_id: str,
+        campaign_name: str,
+        total_days: int,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Tạo in-app notification khi batch content generation hoàn thành.
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            notification_id = f"notif_{uuid.uuid4().hex[:16]}"
+
+            notification = {
+                "notification_id": notification_id,
+                "user_id": user_id,
+                "type": "social_plan_content_done",
+                "title": "Kế hoạch nội dung đã hoàn thành",
+                "message": f"Nội dung cho {total_days} ngày trong chiến dịch '{campaign_name}' đã được tạo xong!",
+                "data": {
+                    "plan_id": plan_id,
+                    "campaign_name": campaign_name,
+                    "total_days": total_days,
+                },
+                "is_read": False,
+                "created_at": now,
+                "read_at": None,
+            }
+
+            result = self.notifications.insert_one(notification)
+            if result.inserted_id:
+                logger.info(
+                    f"✅ Created social plan content done notification for user {user_id}"
+                )
+                return notification
+            return None
+
+        except Exception as e:
+            logger.error(
+                f"❌ Error creating social plan content done notification: {e}"
+            )
+            return None
+
     def list_user_notifications(
         self,
         user_id: str,

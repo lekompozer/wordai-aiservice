@@ -53,6 +53,18 @@ class SocialPlanWorker:
         self.running = False
         self.plan_service = SocialPlanService()
 
+    async def _reconnect(self):
+        """Reconnect Redis after connection loss."""
+        try:
+            await self.redis.aclose()
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+        self.redis = aioredis.from_url(
+            self.redis_url, encoding="utf-8", decode_responses=True
+        )
+        logger.info("🔄 Redis reconnected")
+
     async def start(self):
         logger.info("🚀 Social Plan Worker starting...")
 
@@ -78,6 +90,12 @@ class SocialPlanWorker:
                 job = json.loads(payload)
                 await self._process_job(job)
 
+            except (
+                aioredis.exceptions.ResponseError,
+                aioredis.exceptions.ConnectionError,
+            ) as e:
+                logger.warning(f"Redis connection issue, reconnecting: {e}")
+                await self._reconnect()
             except Exception as e:
                 logger.error(f"Worker loop error: {e}", exc_info=True)
                 await asyncio.sleep(2)

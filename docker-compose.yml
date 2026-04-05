@@ -1122,6 +1122,39 @@ services:
           cpus: "1.0"
 
   # ============================================================================
+  # Social Plan Content Worker - Per-day post content generation (DeepSeek)
+  # ============================================================================
+  social-plan-content-worker:
+    container_name: social-plan-content-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    command: python -m src.workers.social_plan_content_worker
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'social_plan_content_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 400M
+          cpus: "1.0"
+
+  # ============================================================================
   # Social Image Worker - AI post image generation for social plans (Gemini)
   # ============================================================================
   social-image-worker:

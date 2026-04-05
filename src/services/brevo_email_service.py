@@ -939,6 +939,73 @@ class BrevoEmailService:
 
         return self.send_email(to_email, subject, html_body, text_body)
 
+    def send_social_plan_content_done_email(
+        self,
+        to_email: str,
+        campaign_name: str,
+        total_days: int,
+        plan_url: str = "https://wordai.pro/social-plan",
+    ) -> bool:
+        """
+        Send notification email when social plan batch content generation is complete.
+        """
+        subject = f"✅ Nội dung '{campaign_name}' đã được tạo xong!"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .info-box {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f5576c; }}
+                .button {{ display: inline-block; background: #f5576c; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
+                .footer {{ text-align: center; padding: 20px; color: #888; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🎉 Kế hoạch nội dung hoàn thành!</h1>
+                </div>
+                <div class="content">
+                    <p>Xin chào,</p>
+                    <p>Nội dung cho chiến dịch của bạn đã được tạo xong và sẵn sàng để sử dụng!</p>
+                    <div class="info-box">
+                        <h3 style="margin-top: 0; color: #f5576c;">📋 Chi tiết</h3>
+                        <p><strong>Chiến dịch:</strong> {campaign_name}</p>
+                        <p><strong>Số ngày:</strong> {total_days} ngày</p>
+                    </div>
+                    <p style="text-align: center;">
+                        <a href="{plan_url}" class="button">Xem kế hoạch ngay</a>
+                    </p>
+                    <p>Trân trọng,<br><strong>Đội ngũ WordAI</strong></p>
+                </div>
+                <div class="footer">
+                    <p>© 2025 WordAI. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Kế hoạch nội dung hoàn thành - WordAI
+
+        Nội dung cho chiến dịch '{campaign_name}' ({total_days} ngày) đã được tạo xong!
+
+        Xem tại: {plan_url}
+
+        Trân trọng,
+        Đội ngũ WordAI
+        """
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
 
 # Singleton instance
 _brevo_service: Optional[BrevoEmailService] = None
