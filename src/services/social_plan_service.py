@@ -229,7 +229,9 @@ Trả về JSON (chỉ JSON, không có text khác):
 
         language = config.get("language", "vi")
         posts_per_week = config.get("posts_per_week", 5)
-        total_posts = _total_posts_from_package(config.get("package", ""), posts_per_week)
+        total_posts = _total_posts_from_package(
+            config.get("package", ""), posts_per_week
+        )
         products = config.get("products", [])
         start_date = config.get("start_date", "2026-04-01")
         platforms = config.get("platforms", [])
@@ -568,7 +570,10 @@ Lưu ý: Tạo ĐÚNG {num_weeks} tuần. Tuần cuối (tuần {num_weeks}) có
                 {
                   "day": 1, "date": "YYYY-MM-DD",
                   "topic": "...", "content_pillar": "educational",
-                  "hook_direction": "...", "image_guidance": "...",
+                  "hook_direction": "...",
+                  "body_direction": "...",
+                  "closing_direction": "...",
+                  "image_brief": "...",
                   "platform": "facebook"
                 }, ...
               ]
@@ -607,17 +612,19 @@ Hướng dẫn hình ảnh: {week_summary.get('image_guidance', '')}
 - Content mix: 40% educational, 20% promotional, 25% engagement, 15% entertaining
 - KHÔNG lặp topic: {json.dumps(existing[:15], ensure_ascii=False) if existing else '[]'}
 
-Với mỗi bài, trả về:
+Với mỗi bài, trả về ĐẦY ĐỦ các trường sau:
 - day (số ngày tuyệt đối, từ {week_start_day})
-- date (YYYY-MM-DD nếu biết)
-- topic (chủ đề cụ thể, không trùng)
+- date (YYYY-MM-DD)
+- topic (chủ đề cụ thể, không trùng lặp với tuần trước)
 - content_pillar (educational/promotional/engagement/entertaining/brand_story/behind_scenes)
-- hook_direction (hướng viết câu mở đầu)
-- image_guidance (hướng dẫn hình ảnh cụ thể cho bài này)
+- hook_direction: câu mở đầu/hook 1-3 giây đầu — gợi ý câu mở cụ thể, gợi cảm giác bắt đầu thế nào (VD: đặt câu hỏi, nêu pain point, thử thách, số liệu gây sốc)
+- body_direction: phần thân bài — nên trình bày nội dung gì, theo cấu trúc nào, bao nhiêu bước/điểm, dùng ví dụ hay demo gì, dài bao lâu
+- closing_direction: phần kết + CTA — kết thúc thế nào, kêu gọi follow/comment/share ra sao, câu CTA cụ thể gợi ý
+- image_brief: mô tả chi tiết hình ảnh/thumbnail/visual cần chuẩn bị cho bài này — màu sắc, bố cục, element chính, text overlay nếu có, cảm xúc mong muốn (đây là brief để generate hoặc thiết kế hình ảnh)
 - platform
 
 Trả về JSON (chỉ JSON):
-{{"week": {week_num}, "days": [{{"day": N, "date": "YYYY-MM-DD", "topic": "...", "content_pillar": "...", "hook_direction": "...", "image_guidance": "...", "platform": "{primary_platform}"}}]}}"""
+{{"week": {week_num}, "days": [{{"day": N, "date": "YYYY-MM-DD", "topic": "...", "content_pillar": "...", "hook_direction": "...", "body_direction": "...", "closing_direction": "...", "image_brief": "...", "platform": "{primary_platform}"}}]}}"""
 
         response = await self.chatgpt.chat.completions.create(
             model="gpt-5.4",
@@ -683,8 +690,12 @@ Trả về JSON (chỉ JSON):
                         "platform": day_item.get("platform", primary_platform),
                         "content_pillar": day_item.get("content_pillar", "educational"),
                         "topic": day_item.get("topic", f"Post ngày {day}"),
-                        "image_style_hint": day_item.get("image_guidance", ""),
+                        "image_style_hint": day_item.get("image_brief")
+                        or day_item.get("image_guidance", ""),
                         "hook_direction": day_item.get("hook_direction", ""),
+                        "body_direction": day_item.get("body_direction", ""),
+                        "closing_direction": day_item.get("closing_direction", ""),
+                        "image_brief": day_item.get("image_brief", ""),
                         "product_ref": day_item.get("product_ref"),
                         "hook": None,
                         "caption": None,
@@ -727,7 +738,18 @@ Trả về JSON (chỉ JSON):
             f"\nYêu cầu đặc biệt: {custom_instruction}" if custom_instruction else ""
         )
         hook_direction = post.get("hook_direction", "")
-        hook_hint = f"\n- Hướng mở đầu: {hook_direction}" if hook_direction else ""
+        body_direction = post.get("body_direction", "")
+        closing_direction = post.get("closing_direction", "")
+        image_brief = post.get("image_brief") or post.get("image_style_hint", "")
+
+        direction_block = ""
+        if hook_direction:
+            direction_block += f"\n- Hook (mở đầu): {hook_direction}"
+        if body_direction:
+            direction_block += f"\n- Thân bài: {body_direction}"
+        if closing_direction:
+            direction_block += f"\n- Kết + CTA: {closing_direction}"
+
         platforms = config.get("platforms", [])
         platform_str = post.get("platform") or (
             platforms[0].lower() if platforms else "facebook"
@@ -741,9 +763,9 @@ Trả về JSON (chỉ JSON):
 === BÀI POST CẦN VIẾT ===
 - Ngày: {post.get('day')} | Kênh: {platform_str} | Trụ nội dung: {post.get('content_pillar', 'educational')}
 - Chủ đề: {post.get('topic', '')}
-- Hướng hình ảnh: {post.get('image_style_hint', '')}
+- Brief hình ảnh: {image_brief}
 - Sản phẩm (nếu có): {post.get('product_ref') or 'Không có'}
-- Ngôn ngữ: {language}{hook_hint}{instruction_part}
+- Ngôn ngữ: {language}{direction_block}{instruction_part}
 
 Viết nội dung theo ĐÚNG giọng văn brand_voice ở trên.
 
@@ -752,7 +774,7 @@ Trả về JSON (chỉ JSON):
   "hook": "Câu mở đầu thu hút trong 3 giây đầu (≤15 từ)",
   "caption": "Caption đầy đủ 150-200 từ, đúng giọng brand, kết thúc bằng CTA",
   "hashtags": ["#hashtag1", "#hashtag2"],
-  "image_prompt": "Mô tả chi tiết ảnh minh hoạ cho post này, màu sắc theo brand",
+  "image_prompt": "Mô tả chi tiết ảnh/thumbnail cần thiết kế cho post này — màu sắc, bố cục, element chính, text overlay, phong cách (theo brief phía trên)",
   "cta": "Call-to-action ngắn gọn"
 }}"""
 
