@@ -403,14 +403,18 @@ async def crawl_brand_url(url: str) -> Dict[str, Any]:
 
 
 async def crawl_brand_urls(urls: List[str]) -> List[Dict[str, Any]]:
-    """Crawl multiple URLs in parallel (max 5). Legacy helper."""
+    """Crawl multiple URLs sequentially (max 5). Sequential to avoid OOM on constrained servers."""
     if not urls:
         return []
     urls = urls[:MAX_URLS]
-    logger.info(f"🌐 Crawling {len(urls)} URLs in parallel (Playwright)...")
-    results = await asyncio.gather(
-        *[crawl_brand_url(u) for u in urls], return_exceptions=True
-    )
+    logger.info(f"🌐 Crawling {len(urls)} URLs sequentially (Playwright)...")
+    results = []
+    for u in urls:
+        try:
+            result = await crawl_brand_url(u)
+        except Exception as e:
+            result = e
+        results.append(result)
     output = []
     for i, result in enumerate(results):
         if isinstance(result, Exception):

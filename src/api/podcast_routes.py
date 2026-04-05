@@ -399,7 +399,7 @@ def _generate_gaps_from_vocabulary(
 @router.get("")
 async def list_podcasts(
     page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=200),
     level: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
     topic: Optional[str] = Query(default=None),
