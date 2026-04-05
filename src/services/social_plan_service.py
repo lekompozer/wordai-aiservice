@@ -17,12 +17,22 @@ Multi-layer analysis pipeline:
 import asyncio
 import json
 import logging
+import math
 import os
+import re
 from typing import Dict, Any, List, Optional
 
 import openai
 
 logger = logging.getLogger(__name__)
+
+
+def _total_posts_from_package(package: str, posts_per_week: int) -> int:
+    """Extract total posts from package name (e.g. '30posts_1img' -> 30, '60posts_3img' -> 60)."""
+    m = re.match(r"^(\d+)posts", package)
+    if m:
+        return int(m.group(1))
+    return min(posts_per_week * 4, 60)
 
 
 class SocialPlanService:
@@ -219,7 +229,7 @@ Trả về JSON (chỉ JSON, không có text khác):
 
         language = config.get("language", "vi")
         posts_per_week = config.get("posts_per_week", 5)
-        total_posts = min(posts_per_week * 4, 60)  # 4 weeks
+        total_posts = _total_posts_from_package(config.get("package", ""), posts_per_week)
         products = config.get("products", [])
         start_date = config.get("start_date", "2026-04-01")
         platforms = config.get("platforms", [])
@@ -405,8 +415,10 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         goals = config.get("goals", config.get("campaign_goal", "awareness"))
         platforms = config.get("platforms", [])
         posts_per_week = config.get("posts_per_week", 5)
-        total_posts = min(posts_per_week * 4, 60)
         package = config.get("package", "")
+        total_posts = _total_posts_from_package(package, posts_per_week)
+        num_weeks = math.ceil(total_posts / posts_per_week)
+        last_week_posts = total_posts - (num_weeks - 1) * posts_per_week
 
         brand_name = brand_dna.get("brand_name", config.get("business_name", ""))
         brand_voice = brand_dna.get("brand_voice", "")
@@ -474,21 +486,21 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
 
 CAMPAIGN: {campaign_name or 'Chiến dịch marketing tháng này'}
 MỤC TIÊU: {goals}
-KÊNH: {platforms_str} — {posts_per_week} bài/tuần trong 4 tuần, tổng {total_posts} bài
+KÊNH: {platforms_str} — {posts_per_week} bài/tuần trong {num_weeks} tuần, tổng {total_posts} bài
 
 BRAND DNA:
 - Giọng văn: {brand_voice}
 - USP: {usp}
 - Đối tượng: {target_audience}{biz_block}{product_block}{audit_block}
 
-Hãy tạo KẾ HOẠCH TỔNG QUAN 30 ngày (4 tuần) bao gồm:
+Hãy tạo KẾ HOẠCH TỔNG QUAN {total_posts} bài ({num_weeks} tuần) bao gồm:
 - Tổng quan chiến lược campaign
 - Chủ đề mỗi tuần
 - Mục tiêu cụ thể từng tuần
 - Hướng dẫn giọng văn & style tổng quát cho tuần đó
 - Hướng dẫn hình ảnh (màu sắc, bố cục, phong cách)
 - Số hình ảnh khuyến nghị mỗi bài (dựa trên kênh và package: {package})
-- Mục tiêu cuối tháng (ở tuần 4)
+- Mục tiêu cuối chiến dịch (ở tuần {num_weeks})
 
 Trả về JSON (chỉ JSON):
 {{
@@ -505,7 +517,8 @@ Trả về JSON (chỉ JSON):
       "weekly_goal": "Kết quả mong đợi cuối tuần"
     }}
   ]
-}}"""
+}}
+Lưu ý: Tạo ĐÚNG {num_weeks} tuần. Tuần cuối (tuần {num_weeks}) có ĐÚNG {last_week_posts} bài nếu khác {posts_per_week}."""
 
         response = await self.chatgpt.chat.completions.create(
             model="gpt-5.4",

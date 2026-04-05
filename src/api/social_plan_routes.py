@@ -544,6 +544,7 @@ async def create_social_plan(
         "comparison_id": comparison_id or "",
         "business_pdf_asset_id": business_pdf_asset_id or "",
         "product_pdf_asset_id": product_pdf_asset_id or "",
+        "package": package,
     }
 
     # Link asset drafts to this plan (brand images + brand docs + style refs + PDF assets)
@@ -567,6 +568,7 @@ async def create_social_plan(
         "asset_ids": asset_ids,
         "brand_context_asset_ids": brand_context_ids,
         "style_attachment_ids": style_ids,
+        "tiktok_data": tiktok_data,  # stored for retry capability
         "brand_data": {"websites": [], "tiktok_posts": []},
         "analysis_summaries": {},
         "brand_dna": {},
@@ -2114,6 +2116,103 @@ async def list_brand_comparisons(
 # ──────────────────────────────────────────────────────────
 # ④ DYNAMIC ROUTES (plan_id param — MUST be AFTER static routes)
 # ──────────────────────────────────────────────────────────
+
+
+# ── POST /{plan_id}/retry ──────────────────────────────────
+@router.post("/{plan_id}/retry", summary="Retry a failed or stuck plan")
+async def retry_social_plan(
+    plan_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Re-enqueue a failed or stuck plan using its saved config.
+    No points deducted — already charged at creation.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {
+            "_id": 0,
+            "plan_id": 1,
+            "status": 1,
+            "config": 1,
+            "asset_ids": 1,
+            "tiktok_data": 1,
+            "package": 1,
+        },
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.get("status") not in ("failed", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plan không ở trạng thái có thể retry (status: {plan.get('status')})",
+        )
+
+    new_job_id = f"job_{uuid.uuid4().hex[:16]}"
+    now = datetime.now(timezone.utc)
+
+    # Reset plan to processing with new job_id
+    db["social_plans"].update_one(
+        {"plan_id": plan_id},
+        {
+            "$set": {
+                "status": "processing",
+                "job_id": new_job_id,
+                "error": None,
+                "updated_at": now,
+                # Reset generated data so worker starts fresh
+                "brand_data": {"websites": [], "tiktok_posts": []},
+                "analysis_summaries": {},
+                "brand_dna": {},
+                "posts": [],
+                "total_posts": 0,
+                "content_generated": 0,
+                "images_generated": 0,
+            }
+        },
+    )
+
+    # Re-enqueue with saved config and tiktok_data
+    queue = await _get_social_plan_queue()
+    config = plan.get("config", {})
+    queue_payload = json.dumps(
+        {
+            "job_id": new_job_id,
+            "plan_id": plan_id,
+            "user_id": user_id,
+            "config": config,
+            "brand_asset_ids": plan.get("asset_ids", []),
+            "tiktok_data": plan.get("tiktok_data"),
+            "comparison_id": config.get("comparison_id", ""),
+        }
+    )
+    await queue.redis_client.rpush("queue:social_plan_jobs", queue_payload)
+
+    await set_job_status(
+        queue.redis_client,
+        new_job_id,
+        status="pending",
+        user_id=user_id,
+        plan_id=plan_id,
+        step="queued",
+        progress=0,
+        message="Đang chờ xử lý lại...",
+    )
+
+    logger.info(
+        f"[Retry] Plan {plan_id} re-queued as job {new_job_id} by user {user_id}"
+    )
+
+    return {
+        "plan_id": plan_id,
+        "job_id": new_job_id,
+        "status": "processing",
+        "message": "Plan đã được đưa vào hàng đợi để xử lý lại.",
+    }
 
 
 # ── POST /{plan_id}/generate-content ──────────────────────
