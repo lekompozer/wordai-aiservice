@@ -81,6 +81,7 @@ PACKAGE_IMAGE_QUOTA_MAP = {
 
 POINTS_REGEN_IMAGE = 4
 POINTS_REGEN_TEXT = 2
+POINTS_RETRY_PLAN = 50
 
 # ──────────────────────────────────────────────────────────
 # R2 Helper
@@ -2118,6 +2119,109 @@ async def list_brand_comparisons(
 # ──────────────────────────────────────────────────────────
 
 
+# ── GET /{plan_id}/config ───────────────────────────────────
+@router.get("/{plan_id}/config", summary="Get editable plan config (before retry)")
+async def get_plan_config(
+    plan_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Return the editable config fields for a plan.
+    Used to let the user review and modify plan settings before retrying.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {
+            "_id": 0,
+            "plan_id": 1,
+            "status": 1,
+            "package": 1,
+            "config": 1,
+            "total_posts": 1,
+            "points_spent": 1,
+            "created_at": 1,
+        },
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    return {
+        "plan_id": plan["plan_id"],
+        "status": plan.get("status"),
+        "package": plan.get("package"),
+        "total_posts": plan.get("total_posts", 0),
+        "points_spent": plan.get("points_spent", 0),
+        "retry_cost": POINTS_RETRY_PLAN,
+        "created_at": plan.get("created_at"),
+        "config": plan.get("config", {}),
+    }
+
+
+# ── PATCH /{plan_id}/config ─────────────────────────────────
+class UpdatePlanConfigRequest(BaseModel):
+    business_name: Optional[str] = None
+    campaign_name: Optional[str] = None
+    campaign_description: Optional[str] = None
+    goals: Optional[str] = None
+    campaign_goal: Optional[str] = None
+    industry: Optional[str] = None
+    target_audience: Optional[str] = None
+    language: Optional[str] = None
+    tone: Optional[str] = None
+    image_style: Optional[str] = None
+    posts_per_week: Optional[int] = None
+    start_date: Optional[str] = None
+    platforms: Optional[List[str]] = None
+    website_urls: Optional[List[str]] = None
+    competitors: Optional[List[dict]] = None
+    products: Optional[List[dict]] = None
+
+
+@router.patch("/{plan_id}/config", summary="Update plan config before retry")
+async def update_plan_config(
+    plan_id: str,
+    body: UpdatePlanConfigRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update editable config fields on a plan.
+    Can be used before retrying a failed or plan_ready plan.
+    Only updates fields explicitly provided in the request body.
+    Free — no points deducted.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {"_id": 0, "plan_id": 1, "status": 1, "config": 1},
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Build partial config update — only supplied fields
+    updates = {k: v for k, v in body.model_dump(exclude_none=True).items()}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    config_updates = {f"config.{k}": v for k, v in updates.items()}
+    config_updates["updated_at"] = datetime.now(timezone.utc)
+
+    db["social_plans"].update_one(
+        {"plan_id": plan_id},
+        {"$set": config_updates},
+    )
+
+    return {
+        "plan_id": plan_id,
+        "updated_fields": list(updates.keys()),
+        "message": "Config cập nhật thành công. Gọi POST /retry để tạo lại kế hoạch.",
+    }
+
+
 # ── POST /{plan_id}/retry ──────────────────────────────────
 @router.post("/{plan_id}/retry", summary="Retry a failed or stuck plan")
 async def retry_social_plan(
@@ -2125,8 +2229,8 @@ async def retry_social_plan(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Re-enqueue a failed or stuck plan using its saved config.
-    No points deducted — already charged at creation.
+    Re-enqueue a failed, stuck, or plan_ready plan using its (possibly updated) config.
+    Costs 50 points per retry. Points deducted upfront.
     """
     user_id = current_user["uid"]
     db = _get_db()
@@ -2146,10 +2250,26 @@ async def retry_social_plan(
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    if plan.get("status") not in ("failed", "processing"):
+    allowed_statuses = ("failed", "processing", "plan_ready")
+    if plan.get("status") not in allowed_statuses:
         raise HTTPException(
             status_code=400,
-            detail=f"Plan không ở trạng thái có thể retry (status: {plan.get('status')})",
+            detail=f"Plan không ở trạng thái có thể retry (status: {plan.get('status')}). Chỉ retry được khi status là: {', '.join(allowed_statuses)}",
+        )
+
+    # Deduct 50 points
+    points_service = get_points_service()
+    try:
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_RETRY_PLAN,
+            service="social_plan_retry",
+            description=f"Social Plan Retry - {plan_id}",
+        )
+    except InsufficientPointsError:
+        raise HTTPException(
+            status_code=402,
+            detail=f"Không đủ điểm. Cần {POINTS_RETRY_PLAN} điểm để retry kế hoạch.",
         )
 
     new_job_id = f"job_{uuid.uuid4().hex[:16]}"
@@ -2211,6 +2331,7 @@ async def retry_social_plan(
         "plan_id": plan_id,
         "job_id": new_job_id,
         "status": "processing",
+        "points_spent": POINTS_RETRY_PLAN,
         "message": "Plan đã được đưa vào hàng đợi để xử lý lại.",
     }
 
