@@ -28,7 +28,7 @@ import redis.asyncio as aioredis
 
 from src.database.db_manager import DBManager
 from src.queue.queue_manager import set_job_status
-from src.services.brand_crawler import crawl_brand_urls, merge_brand_data
+from src.services.brand_crawler import discover_and_crawl_website, merge_brand_data
 from src.services.tiktok_parser import parse_tiktok_export, extract_tiktok_insights
 from src.services.social_plan_service import SocialPlanService
 from src.services.competitor_analyzer import analyze_all_competitors
@@ -211,13 +211,21 @@ class SocialPlanWorker:
                 except Exception as e:
                     logger.warning(f"[Plan] Business PDF parse failed (non-fatal): {e}")
 
+            brand_data = {}
             if website_urls and not business_pdf_asset_id:
                 try:
-                    crawl_results = await crawl_brand_urls(website_urls)
+                    # Use Jina Reader API (r.jina.ai) — clean Markdown, no Playwright
+                    entry_url = website_urls[0]
+                    brand_data = await discover_and_crawl_website(entry_url)
+                    logger.info(
+                        f"[Plan] Jina crawl done: {len(brand_data.get('combined_text', ''))} chars"
+                    )
                 except Exception as e:
-                    logger.warning(f"Crawl failed (non-fatal): {e}")
+                    logger.warning(f"Jina crawl failed (non-fatal): {e}")
 
-            brand_data = merge_brand_data(crawl_results)
+            # Legacy merge_brand_data path only used when discover_and_crawl_website failed
+            if not brand_data and crawl_results:
+                brand_data = merge_brand_data(crawl_results)
 
             # ── Phase 2: TikTok Parsing ─────────────────────────────
             await set_job_status(

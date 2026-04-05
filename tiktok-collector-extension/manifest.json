@@ -1,20 +1,21 @@
 {
     "manifest_version": 3,
     "name": "WordAI TikTok Collector",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Collect TikTok post captions, dates and stats for WordAI Content Engine analysis",
     "permissions": [
         "storage",
         "scripting",
-        "tabs"
+        "tabs",
+        "downloads",
+        "webRequest"
     ],
     "host_permissions": [
         "https://www.tiktok.com/*",
         "https://m.tiktok.com/*"
     ],
     "action": {
-        "default_popup": "popup.html",
-        "default_title": "WordAI TikTok Collector",
+        "default_title": "WordAI TikTok Collector — Click to toggle sidebar",
         "default_icon": {
             "16": "icon.png",
             "32": "icon.png",
@@ -28,6 +29,16 @@
                 "https://www.tiktok.com/*"
             ],
             "js": [
+                "page-bridge.js"
+            ],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": [
+                "https://www.tiktok.com/*"
+            ],
+            "js": [
                 "content.js"
             ],
             "run_at": "document_idle"
@@ -36,6 +47,21 @@
     "background": {
         "service_worker": "background.js"
     },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "sidebar.html",
+                "sidebar.js",
+                "sidebar.css",
+                "page-bridge.js",
+                "logo-wordai-square.png",
+                "icon.png"
+            ],
+            "matches": [
+                "https://www.tiktok.com/*"
+            ]
+        }
+    ],
     "icons": {
         "16": "icon.png",
         "32": "icon.png",

@@ -364,7 +364,7 @@ async function loadFollowingPosts() {
         if (!author || !author.secUid) continue;
 
         try {
-            const resp = await sendToContent('fetchUserPosts', { secUid: author.secUid, cursor: 0 });
+            const resp = await sendToContent('fetchUserPosts', { secUid: author.secUid, uniqueId: author.username || '', cursor: 0, autoNavigate: false });
             let items = resp.items;
             if (newOnly) items = items.filter(i => !downloadedIds.has(i.id));
 

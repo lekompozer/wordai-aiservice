@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>WordAI TikTok Collector</title>
+    <link rel="stylesheet" href="sidebar.css">
+</head>
+
+<body>
+
+    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <div id="header">
+        <div id="logo">
+            <img src="logo-wordai-square.png" alt="WordAI logo" id="logo-img">
+            <span><strong>WordAI</strong> Collector</span>
+        </div>
+        <div id="user-strip">
+            <span id="user-name">Not connected</span>
+            <button id="btn-connect" class="btn btn-sm btn-primary">Connect</button>
+        </div>
+    </div>
+
+    <!-- ── Status bar ─────────────────────────────────────────────────────── -->
+    <div id="status-bar" class="hidden">
+        <span id="status-icon"></span>
+        <span id="status-text"></span>
+    </div>
+
+    <!-- ── Tabs ───────────────────────────────────────────────────────────── -->
+    <div id="tab-nav">
+        <button class="tab-btn active" data-tab="likes" title="Liked posts">❤️</button>
+        <button class="tab-btn" data-tab="saved" title="Saved / Collected">🔖</button>
+        <button class="tab-btn" data-tab="my" title="My Posts">👤</button>
+        <button class="tab-btn" data-tab="following" title="Following accounts">👥</button>
+        <button class="tab-btn" data-tab="channel" title="Browse any channel">📺</button>
+        <button class="tab-btn tab-btn-admin" data-tab="admin" title="Admin: sync DB1 channels">⚙️</button>
+    </div>
+
+    <!-- ── Tab Panes ──────────────────────────────────────────────────────── -->
+    <div id="panes">
+
+        <!-- LIKES -->
+        <div id="pane-likes" class="pane active">
+            <div class="pane-toolbar">
+                <button id="btn-load-likes" class="btn btn-primary btn-sm">Load Likes</button>
+                <span class="pane-stats" id="likes-stats"></span>
+            </div>
+            <div class="sel-bar hidden" id="likes-sel-bar">
+                <label class="cb-label"><input type="checkbox" id="likes-chk-all"> All</label>
+                <button class="btn-link" id="likes-btn-new">New</button>
+                <button class="btn-link" id="likes-btn-none">None</button>
+                <span class="sel-count" id="likes-sel-count"></span>
+            </div>
+            <div class="post-list" id="likes-list"></div>
+            <div class="more-bar hidden" id="likes-more-bar">
+                <button class="btn btn-sm btn-ghost" id="btn-likes-more">Load More</button>
+            </div>
+        </div>
+
+        <!-- SAVED -->
+        <div id="pane-saved" class="pane">
+            <div class="pane-toolbar">
+                <button id="btn-load-saved" class="btn btn-primary btn-sm">Load Saved</button>
+                <span class="pane-stats" id="saved-stats"></span>
+            </div>
+            <div class="sel-bar hidden" id="saved-sel-bar">
+                <label class="cb-label"><input type="checkbox" id="saved-chk-all"> All</label>
+                <button class="btn-link" id="saved-btn-new">New</button>
+                <button class="btn-link" id="saved-btn-none">None</button>
+                <span class="sel-count" id="saved-sel-count"></span>
+            </div>
+            <div class="post-list" id="saved-list"></div>
+            <div class="more-bar hidden" id="saved-more-bar">
+                <button class="btn btn-sm btn-ghost" id="btn-saved-more">Load More</button>
+            </div>
+        </div>
+
+        <!-- MY POSTS -->
+        <div id="pane-my" class="pane">
+            <div class="pane-toolbar">
+                <button id="btn-load-my" class="btn btn-primary btn-sm">Load My Posts</button>
+                <span class="pane-stats" id="my-stats"></span>
+            </div>
+            <div class="sel-bar hidden" id="my-sel-bar">
+                <label class="cb-label"><input type="checkbox" id="my-chk-all"> All</label>
+                <button class="btn-link" id="my-btn-new">New</button>
+                <button class="btn-link" id="my-btn-none">None</button>
+                <span class="sel-count" id="my-sel-count"></span>
+            </div>
+            <div class="post-list" id="my-list"></div>
+            <div class="more-bar hidden" id="my-more-bar">
+                <button class="btn btn-sm btn-ghost" id="btn-my-more">Load More</button>
+            </div>
+        </div>
+
+        <!-- FOLLOWING -->
+        <div id="pane-following" class="pane">
+            <div class="pane-toolbar">
+                <button id="btn-load-following" class="btn btn-primary btn-sm">Load Following</button>
+                <span class="pane-stats" id="following-stats"></span>
+            </div>
+
+            <!-- Account selector -->
+            <div id="account-section" class="hidden">
+                <div class="section-head">
+                    <span class="section-label">Accounts</span>
+                    <label class="cb-label"><input type="checkbox" id="acc-chk-all"> All</label>
+                    <button class="btn-link" id="acc-btn-none">None</button>
+                    <span class="sel-count" id="acc-sel-count"></span>
+                </div>
+                <div class="account-list" id="account-list"></div>
+                <div class="more-bar hidden" id="acc-more-bar">
+                    <button class="btn btn-sm btn-ghost" id="btn-acc-more">Load More</button>
+                </div>
+                <div class="section-action">
+                    <button id="btn-load-follow-posts" class="btn btn-primary btn-sm" disabled>
+                        ▶ Load Posts (<span id="acc-selected-n">0</span>)
+                    </button>
+                    <label class="cb-label small"><input type="checkbox" id="follow-new-only"> New only</label>
+                </div>
+            </div>
+
+            <!-- Posts from following -->
+            <div id="follow-posts-section" class="hidden">
+                <div class="section-head">
+                    <span class="section-label">Posts</span>
+                    <label class="cb-label"><input type="checkbox" id="fp-chk-all"> All</label>
+                    <button class="btn-link" id="fp-btn-new">New</button>
+                    <button class="btn-link" id="fp-btn-none">None</button>
+                    <span class="sel-count" id="fp-sel-count"></span>
+                </div>
+                <div class="post-list" id="follow-posts-list"></div>
+            </div>
+        </div>
+
+        <!-- CHANNEL -->
+        <div id="pane-channel" class="pane">
+            <div class="channel-input-row">
+                <input type="text" id="channel-url-input" placeholder="@username or tiktok.com/@username"
+                    autocomplete="off" spellcheck="false">
+                <button id="btn-load-channel" class="btn btn-primary btn-sm">▶</button>
+            </div>
+
+            <div id="channel-info" class="hidden">
+                <div class="channel-info-inner">
+                    <div class="account-avatar" id="channel-avatar"></div>
+                    <div class="channel-info-text">
+                        <div class="account-nick" id="channel-nickname"></div>
+                        <div class="account-user" id="channel-username"></div>
+                    </div>
+                    <div class="channel-info-stats" id="channel-stats-text"></div>
+                </div>
+            </div>
+
+            <div class="sel-bar hidden" id="channel-sel-bar">
+                <label class="cb-label"><input type="checkbox" id="channel-chk-all"> All</label>
+                <button class="btn-link" id="channel-btn-new">New</button>
+                <button class="btn-link" id="channel-btn-none">None</button>
+                <span class="sel-count" id="channel-sel-count"></span>
+            </div>
+            <div class="post-list" id="channel-list"></div>
+            <div class="more-bar hidden" id="channel-more-bar">
+                <button class="btn btn-sm btn-ghost" id="btn-channel-more">Load More</button>
+            </div>
+        </div>
+
+        <!-- ADMIN -->
+        <div id="pane-admin" class="pane">
+
+            <!-- API Key setup -->
+            <div id="admin-setup" class="admin-section">
+                <div class="admin-section-head">
+                    <span class="section-label">🔑 DB1 API Key</span>
+                    <button id="btn-admin-key-toggle" class="btn-link">show</button>
+                </div>
+                <div id="admin-key-row" class="admin-key-row hidden">
+                    <input type="password" id="admin-api-key-input" placeholder="Worker secret key" autocomplete="off">
+                    <button id="btn-admin-key-save" class="btn btn-primary btn-sm">Save</button>
+                </div>
+                <div id="admin-key-status" class="admin-key-status"></div>
+            </div>
+
+            <!-- Channels -->
+            <div class="admin-section">
+                <div class="admin-section-head">
+                    <span class="section-label">📺 Channels</span>
+                    <button id="btn-admin-load-channels" class="btn btn-sm btn-primary">Reload</button>
+                    <button id="btn-admin-sync-all" class="btn btn-sm btn-ghost" disabled>▶ Sync All</button>
+                </div>
+                <div id="admin-channels-list" class="admin-channels-list">
+                    <div class="empty-msg">Load channels to begin</div>
+                </div>
+            </div>
+
+            <!-- Sync log -->
+            <div id="admin-log-section" class="admin-section hidden">
+                <div class="admin-section-head">
+                    <span class="section-label">📋 Sync Log</span>
+                    <button id="btn-admin-log-clear" class="btn-link">clear</button>
+                </div>
+                <div id="admin-log" class="admin-log"></div>
+            </div>
+
+        </div>
+
+    </div><!-- /panes -->
+
+    <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+    <div id="footer">
+        <div id="footer-info">
+            <span id="total-selected-label">0 selected</span>
+            <span id="footer-new-label" class="new-badge hidden"></span>
+        </div>
+        <div id="footer-btns">
+            <button id="btn-export-json" class="btn btn-export" disabled
+                title="Export metadata + descriptions as JSON">⬇ JSON</button>
+            <button id="btn-export-txt" class="btn btn-export" disabled title="Export as plain text">⬇ TXT</button>
+            <button id="btn-export-mp4" class="btn btn-export btn-export-mp4" disabled title="Download video files">⬇
+                MP4</button>
+        </div>
+    </div>
+
+    <script src="sidebar.js"></script>
+</body>
+
+</html>

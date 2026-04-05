@@ -1,0 +1,884 @@
+/* WordAI TikTok Collector — Sidebar styles (full-height, embedded in TikTok) */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 13px;
+    background: #0f0f10;
+    color: #e0e0e0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ── Header ── */
+#header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    background: #1a1a1e;
+    border-bottom: 1px solid #2a2a30;
+    flex-shrink: 0;
+}
+
+#logo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    color: #fff;
+    letter-spacing: .2px;
+}
+
+#logo-img {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+#logo strong {
+    color: #fe2c55;
+}
+
+#user-strip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+#user-name {
+    font-size: 11px;
+    color: #aaa;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── Status bar ── */
+#status-bar {
+    padding: 5px 12px;
+    font-size: 11px;
+    background: #1e1e22;
+    border-bottom: 1px solid #2a2a30;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-height: 26px;
+}
+
+#status-bar.hidden {
+    display: none;
+}
+
+#status-bar.ok {
+    color: #4caf93;
+}
+
+#status-bar.err {
+    color: #ff6b6b;
+}
+
+#status-bar.info {
+    color: #7ec8e3;
+}
+
+/* ── Tabs ── */
+#tab-nav {
+    display: flex;
+    background: #1a1a1e;
+    border-bottom: 1px solid #2a2a30;
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 8px 2px;
+    border: none;
+    background: transparent;
+    color: #888;
+    font-size: 16px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color .15s, border-color .15s;
+}
+
+.tab-btn:hover {
+    color: #ccc;
+}
+
+.tab-btn.active {
+    color: #fe2c55;
+    border-bottom-color: #fe2c55;
+}
+
+/* ── Panes ── */
+#panes {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.pane {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.pane.active {
+    display: flex;
+}
+
+/* ── Pane toolbar ── */
+.pane-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    background: #141418;
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+.pane-stats {
+    font-size: 10px;
+    color: #555;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+/* ── Selection bar ── */
+.sel-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    background: #151519;
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+.sel-bar.hidden {
+    display: none;
+}
+
+.sel-count {
+    margin-left: auto;
+    font-size: 11px;
+    color: #fe2c55;
+    font-weight: 600;
+}
+
+.cb-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    color: #bbb;
+    user-select: none;
+}
+
+.cb-label.small {
+    font-size: 10px;
+}
+
+.cb-label input[type=checkbox] {
+    accent-color: #fe2c55;
+    width: 12px;
+    height: 12px;
+}
+
+/* ── Post list ── */
+.post-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+    min-height: 0;
+}
+
+.post-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.post-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.post-list::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+}
+
+/* ── Post item ── */
+.post-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 6px 12px;
+    border-bottom: 1px solid #1c1c22;
+    cursor: pointer;
+    transition: background .1s;
+}
+
+.post-item:hover {
+    background: #19191f;
+}
+
+.post-item.downloaded {
+    opacity: .5;
+}
+
+.post-item input[type=checkbox] {
+    accent-color: #fe2c55;
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    cursor: pointer;
+}
+
+.post-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.post-meta {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 3px;
+    flex-wrap: wrap;
+}
+
+.post-date {
+    font-size: 10px;
+    color: #555;
+}
+
+.post-type {
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+.post-type.video {
+    background: #1a2535;
+    color: #5ba4e8;
+}
+
+.post-type.image {
+    background: #1a2a1e;
+    color: #5bc87a;
+}
+
+.post-author {
+    font-size: 10px;
+    color: #777;
+}
+
+.post-author::before {
+    content: '@';
+}
+
+.post-done {
+    font-size: 10px;
+    color: #4caf93;
+    margin-left: auto;
+}
+
+.post-desc {
+    font-size: 12px;
+    color: #ccc;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.post-stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 3px;
+    font-size: 10px;
+    color: #555;
+}
+
+/* ── More bar ── */
+.more-bar {
+    padding: 7px 12px;
+    text-align: center;
+    flex-shrink: 0;
+    border-top: 1px solid #222228;
+}
+
+.more-bar.hidden {
+    display: none;
+}
+
+/* ── Following sub-sections ── */
+#account-section {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+#follow-posts-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ── Section head ── */
+.section-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    background: #151519;
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+.section-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+.section-action {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-top: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+/* ── Account list ── */
+.account-list {
+    max-height: 165px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.account-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.account-list::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+}
+
+.account-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 12px;
+    border-bottom: 1px solid #1c1c22;
+    cursor: pointer;
+}
+
+.account-item:hover {
+    background: #19191f;
+}
+
+.account-item input[type=checkbox] {
+    accent-color: #fe2c55;
+    flex-shrink: 0;
+}
+
+.account-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #333;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.account-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.account-details {
+    flex: 1;
+    min-width: 0;
+}
+
+.account-nick {
+    font-size: 12px;
+    color: #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.account-user {
+    font-size: 10px;
+    color: #555;
+}
+
+.account-info {
+    font-size: 10px;
+    color: #444;
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Channel tab ── */
+.channel-input-row {
+    display: flex;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #141418;
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+.channel-input-row input[type=text] {
+    flex: 1;
+    background: #1e1e24;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #e0e0e0;
+    font-size: 12px;
+    padding: 5px 8px;
+    outline: none;
+    min-width: 0;
+}
+
+.channel-input-row input[type=text]::placeholder {
+    color: #555;
+}
+
+.channel-input-row input[type=text]:focus {
+    border-color: #fe2c55;
+}
+
+#channel-info {
+    padding: 7px 12px;
+    background: #111115;
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+#channel-info.hidden {
+    display: none;
+}
+
+.channel-info-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.channel-info-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.channel-info-stats {
+    font-size: 10px;
+    color: #555;
+    text-align: right;
+    flex-shrink: 0;
+    line-height: 1.4;
+}
+
+/* ── Footer ── */
+#footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    background: #1a1a1e;
+    border-top: 1px solid #2a2a30;
+    flex-shrink: 0;
+}
+
+#footer-info {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+#total-selected-label {
+    font-size: 11px;
+    color: #aaa;
+    white-space: nowrap;
+}
+
+.new-badge {
+    font-size: 10px;
+    background: #1d3a25;
+    color: #4caf93;
+    padding: 1px 5px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
+
+.new-badge.hidden {
+    display: none;
+}
+
+#footer-btns {
+    display: flex;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+/* ── Buttons ── */
+.btn {
+    padding: 5px 11px;
+    border: none;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity .15s;
+    white-space: nowrap;
+}
+
+.btn:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+}
+
+.btn:not(:disabled):hover {
+    opacity: .82;
+}
+
+.btn-sm {
+    padding: 4px 9px;
+    font-size: 11px;
+}
+
+.btn-primary {
+    background: #fe2c55;
+    color: #fff;
+}
+
+.btn-ghost {
+    background: #252528;
+    color: #ccc;
+    border: 1px solid #333;
+}
+
+.btn-export {
+    background: #252528;
+    color: #7ec8e3;
+    border: 1px solid #2d4050;
+    font-size: 11px;
+    padding: 4px 9px;
+}
+
+.btn-folder {
+    color: #e0ba60;
+    border-color: #3a3020;
+    flex-shrink: 0;
+}
+
+.btn-folder:hover {
+    background: #252010;
+}
+
+.btn-export-mp4 {
+    color: #b8e67a;
+    border-color: #2d3d20;
+}
+
+.btn-link {
+    background: transparent;
+    border: none;
+    color: #7ec8e3;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.btn-link:hover {
+    color: #aee6ff;
+}
+
+/* ── Helpers ── */
+.hidden {
+    display: none !important;
+}
+
+.empty-msg {
+    padding: 20px 12px;
+    text-align: center;
+    color: #444;
+    font-size: 12px;
+}
+
+/* ── Admin tab ── */
+.tab-btn-admin {
+    font-size: 14px;
+}
+
+#pane-admin {
+    overflow-y: auto;
+    gap: 0;
+}
+
+#pane-admin::-webkit-scrollbar {
+    width: 4px;
+}
+
+#pane-admin::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+}
+
+.admin-section {
+    border-bottom: 1px solid #222228;
+    flex-shrink: 0;
+}
+
+.admin-section-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    background: #141418;
+}
+
+/* API key row */
+.admin-key-row {
+    display: flex;
+    gap: 6px;
+    padding: 6px 12px 8px;
+}
+
+.admin-key-row input[type=password] {
+    flex: 1;
+    background: #1e1e24;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #e0e0e0;
+    font-size: 12px;
+    padding: 4px 8px;
+    outline: none;
+    min-width: 0;
+}
+
+.admin-key-row input[type=password]:focus {
+    border-color: #fe2c55;
+}
+
+.admin-key-status {
+    padding: 0 12px 7px;
+    font-size: 11px;
+    color: #4caf93;
+}
+
+/* Channel list */
+.admin-channels-list {
+    max-height: none;
+    overflow: visible;
+}
+
+.admin-channel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-bottom: 1px solid #1c1c22;
+}
+
+.admin-channel-item:last-child {
+    border-bottom: none;
+}
+
+.admin-channel-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.admin-channel-name {
+    font-size: 12px;
+    color: #ddd;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.admin-channel-meta {
+    font-size: 10px;
+    color: #555;
+    margin-top: 2px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.admin-channel-meta .posts-count {
+    color: #6a8fa8;
+}
+
+.admin-channel-meta .sync-badge {
+    color: #4caf93;
+}
+
+.admin-channel-meta .sync-pending {
+    color: #e0ba60;
+}
+
+.admin-channel-meta .special-tag {
+    color: #fe7c9a;
+    background: #2a1520;
+    padding: 0 4px;
+    border-radius: 3px;
+}
+
+.admin-channel-sync-btn {
+    flex-shrink: 0;
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    background: #1e1e24;
+    color: #7ec8e3;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.admin-channel-sync-btn:hover {
+    background: #252530;
+}
+
+.admin-channel-sync-btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+
+.admin-channel-sync-btn.syncing {
+    color: #e0ba60;
+}
+
+.admin-channel-sync-btn.done {
+    color: #4caf93;
+}
+
+/* Link icon button */
+.admin-ch-link-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    opacity: 0.35;
+    padding: 0 2px;
+    vertical-align: middle;
+    line-height: 1;
+    transition: opacity 0.15s;
+}
+
+.admin-ch-link-btn:hover {
+    opacity: 0.9;
+}
+
+.admin-ch-link-btn.has-link {
+    opacity: 0.85;
+    filter: hue-rotate(140deg);
+}
+
+/* Inline link-edit row */
+.admin-ch-link-row {
+    display: flex;
+    gap: 5px;
+    margin: 4px 0 2px;
+    align-items: center;
+}
+
+.admin-ch-link-input {
+    flex: 1;
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid #333;
+    background: #14141a;
+    color: #ccc;
+    min-width: 0;
+}
+
+.admin-ch-link-input:focus {
+    outline: none;
+    border-color: #5a8fa8;
+}
+
+.admin-ch-link-save {
+    font-size: 10px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+/* Sync log */
+.admin-log {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    line-height: 1.6;
+}
+
+.admin-log::-webkit-scrollbar {
+    width: 4px;
+}
+
+.admin-log::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+}
+
+.log-line {
+    color: #888;
+}
+
+.log-line.ok {
+    color: #4caf93;
+}
+
+.log-line.err {
+    color: #ff6b6b;
+}
+
+.log-line.info {
+    color: #7ec8e3;
+}
+
+.log-line.warn {
+    color: #e0ba60;
+}
